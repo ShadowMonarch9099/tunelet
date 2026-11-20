@@ -34,7 +34,8 @@ mod native {
     use tauri::WebviewWindow;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowLongPtrW, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos,
-        ShowWindow, GWL_EXSTYLE, SWP_NOACTIVATE, SWP_NOZORDER, SW_SHOWNOACTIVATE, WS_EX_APPWINDOW,
+        IsWindowVisible, ShowWindow, GWL_EXSTYLE, SWP_NOACTIVATE, SWP_NOZORDER, SW_HIDE, SW_SHOWNOACTIVATE,
+        WS_EX_APPWINDOW,
         WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
 
@@ -82,6 +83,19 @@ mod native {
         }
     }
 
+    // Show/hide/visibility all go through Win32 directly. Mixing a native
+    // show with the window library's hide() breaks: the library keeps its own
+    // visibility flag, still thinks the window is hidden, and ignores hide().
+    pub fn hide(w: &WebviewWindow) {
+        if let Some(h) = hwnd(w) {
+            unsafe { ShowWindow(h, SW_HIDE) };
+        }
+    }
+
+    pub fn is_visible(w: &WebviewWindow) -> bool {
+        hwnd(w).map(|h| unsafe { IsWindowVisible(h) != 0 }).unwrap_or(false)
+    }
+
     /// Move and resize in one step (physical pixels), so content never jumps.
     pub fn set_bounds(w: &WebviewWindow, x: i32, y: i32, width: i32, height: i32) {
         if let Some(h) = hwnd(w) {
@@ -96,6 +110,12 @@ mod native {
     pub fn set_interactive(_w: &WebviewWindow, _interactive: bool) {}
     pub fn show_no_activate(w: &WebviewWindow) {
         let _ = w.show();
+    }
+    pub fn hide(w: &WebviewWindow) {
+        let _ = w.hide();
+    }
+    pub fn is_visible(w: &WebviewWindow) -> bool {
+        w.is_visible().unwrap_or(false)
     }
     pub fn set_bounds(w: &WebviewWindow, x: i32, y: i32, width: i32, height: i32) {
         let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
@@ -112,8 +132,8 @@ fn show_widget(app: &AppHandle) {
 
 fn toggle_widget(app: &AppHandle) {
     if let Some(w) = main_window(app) {
-        if w.is_visible().unwrap_or(false) {
-            let _ = w.hide();
+        if native::is_visible(&w) {
+            native::hide(&w);
         } else {
             show_widget(app);
         }
@@ -123,7 +143,7 @@ fn toggle_widget(app: &AppHandle) {
 #[tauri::command]
 fn hide_widget(app: AppHandle) {
     if let Some(w) = main_window(&app) {
-        let _ = w.hide();
+        native::hide(&w);
     }
 }
 

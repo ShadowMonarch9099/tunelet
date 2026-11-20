@@ -48,10 +48,21 @@
   let queue: Promise<unknown> = Promise.resolve();
 
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-  /** Runs transitions one after another so rapid clicks can't tangle them. */
+  /**
+   * Waits for the next painted frame so CSS transitions start from the right
+   * state. Windows stops painting hidden/covered windows, so never wait more
+   * than a moment for it.
+   */
+  const frame = () =>
+    Promise.race([new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), wait(60)]);
+  /**
+   * Runs transitions one after another so rapid clicks can't tangle them.
+   * A step that somehow hangs is abandoned after 3s so it can't block every
+   * later transition (which would leave the widget stuck "open").
+   */
   function serial(fn: () => Promise<void>) {
-    queue = queue.then(fn, fn);
+    const step = () => Promise.race([fn(), wait(3000)]);
+    queue = queue.then(step, step);
     return queue;
   }
 
