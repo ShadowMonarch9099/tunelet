@@ -5,7 +5,22 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
+mod colors;
+mod media;
+
+use media::{Cmd, Media};
+
 const MAIN: &str = "main";
+
+fn hotkey(code: Code) -> Shortcut {
+    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), code)
+}
+
+fn send_media(app: &AppHandle, cmd: Cmd) {
+    if let Some(m) = app.try_state::<Media>() {
+        m.send(cmd);
+    }
+}
 
 fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window(MAIN)
@@ -92,9 +107,25 @@ fn set_interactive(app: AppHandle, interactive: bool) {
     }
 }
 
+/// Transport controls from the UI: "toggle", "next", "previous" or "refresh".
+#[tauri::command]
+fn media(app: AppHandle, action: String) {
+    let cmd = match action.as_str() {
+        "toggle" => Cmd::TogglePlay,
+        "next" => Cmd::Next,
+        "previous" => Cmd::Previous,
+        _ => Cmd::Refresh,
+    };
+    send_media(&app, cmd);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let toggle_shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyS);
+    let toggle_shortcut = hotkey(Code::KeyS);
+    let play_shortcut = hotkey(Code::KeyP);
+    let next_shortcut = hotkey(Code::ArrowRight);
+    let prev_shortcut = hotkey(Code::ArrowLeft);
+    let shortcuts = [toggle_shortcut, play_shortcut, next_shortcut, prev_shortcut];
 
     tauri::Builder::default()
         // A second launch just shows the running widget instead of opening another.
@@ -110,14 +141,30 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, shortcut, event| {
-                    if event.state() == ShortcutState::Pressed && shortcut == &toggle_shortcut {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if shortcut == &toggle_shortcut {
                         toggle_widget(app);
+                    } else if shortcut == &play_shortcut {
+                        send_media(app, Cmd::TogglePlay);
+                    } else if shortcut == &next_shortcut {
+                        send_media(app, Cmd::Next);
+                    } else if shortcut == &prev_shortcut {
+                        send_media(app, Cmd::Previous);
                     }
                 })
                 .build(),
         )
         .setup(move |app| {
-            app.global_shortcut().register(toggle_shortcut)?;
+            app.manage(media::start(app.handle().clone()));
+
+            for s in shortcuts {
+                // Another app may already own a combo; keep going with the rest.
+                if let Err(e) = app.global_shortcut().register(s) {
+                    eprintln!("could not register hotkey {s:?}: {e}");
+                }
+            }
 
             if let Some(w) = main_window(app.handle()) {
                 native::set_interactive(&w, false);
@@ -151,7 +198,7 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![hide_widget, set_interactive])
+        .invoke_handler(tauri::generate_handler![hide_widget, set_interactive, media])
         .run(tauri::generate_context!())
         .expect("error while running Tunelet");
 }

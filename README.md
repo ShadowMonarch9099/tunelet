@@ -19,8 +19,8 @@ A tiny, always-on-top Spotify mini-player for Windows. It floats over whatever y
 |---|---|
 | `Ctrl+Alt+S` | Show / hide the widget |
 | `Ctrl+Alt+F` | Show and jump to search *(coming)* |
-| `Ctrl+Alt+Space` | Play / pause *(coming)* |
-| `Ctrl+Alt+←` / `→` | Previous / next *(coming)* |
+| `Ctrl+Alt+P` | Play / pause |
+| `Ctrl+Alt+←` / `→` | Previous / next |
 | `Ctrl+Alt+L` | Like current song *(coming)* |
 | `Esc` | Hide (when the widget is focused) |
 
@@ -55,8 +55,8 @@ The script finds Cargo and the Windows SDK's `rc.exe` even when they aren't on `
 
 - [x] Project setup, CI builds
 - [x] Floating frameless window, always on top, no focus stealing, show/hide hotkey, tray icon
-- [ ] Now playing + play/pause/skip via Windows media controls
-- [ ] Album-adaptive colors
+- [x] Now playing + play/pause/skip via Windows media controls
+- [x] Album-adaptive colors
 - [ ] Spotify login (bring-your-own Client ID, PKCE)
 - [ ] Expanded mode: search, play, queue
 - [ ] Like, playlists, seek, volume, device switch, settings

@@ -1,13 +1,41 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
+  import { onMount } from "svelte";
 
-  // Placeholder now-playing state. Milestone 3 wires this to Windows media
-  // controls; milestone 4 derives the colors from the real album cover.
-  let title = $state("Nothing playing");
-  let artist = $state("Open Spotify to start");
-  let playing = $state(false);
-  let c1 = $state("#3a2a5c");
-  let c2 = $state("#12324a");
+  type NowPlaying = {
+    available: boolean;
+    title: string;
+    artist: string;
+    album: string;
+    playing: boolean;
+    art: string | null;
+    colors: [string, string] | null;
+  };
+
+  const IDLE: [string, string] = ["#3a2a5c", "#12324a"];
+
+  let np = $state<NowPlaying | null>(null);
+  let title = $derived(np?.available ? np.title : "Nothing playing");
+  let artist = $derived(np?.available ? np.artist : "Open Spotify to start");
+  let playing = $derived(np?.available ? np.playing : false);
+  let art = $derived(np?.available ? np.art : null);
+  let c1 = $derived(np?.available && np.colors ? np.colors[0] : IDLE[0]);
+  let c2 = $derived(np?.available && np.colors ? np.colors[1] : IDLE[1]);
+
+  onMount(() => {
+    const unlisten = listen<NowPlaying>("now-playing", (e) => (np = e.payload));
+    invoke("media", { action: "refresh" });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  });
+
+  function media(action: "toggle" | "next" | "previous") {
+    // Flip the icon right away; the real state arrives a moment later.
+    if (action === "toggle" && np?.available) np = { ...np, playing: !np.playing };
+    invoke("media", { action });
+  }
 
   function hide() {
     invoke("hide_widget");
@@ -21,25 +49,31 @@
 <svelte:window onkeydown={onKey} />
 
 <main class="pill" style="--c1: {c1}; --c2: {c2}" data-tauri-drag-region>
-  <div class="art" data-tauri-drag-region></div>
+  <div class="art" data-tauri-drag-region>
+    {#if art}
+      {#key art}
+        <img src={art} alt="" draggable="false" data-tauri-drag-region />
+      {/key}
+    {/if}
+  </div>
 
-  <div class="meta" data-tauri-drag-region>
+  <div class="meta" data-tauri-drag-region title={np?.available ? `${np.title} — ${np.artist}` : ""}>
     <div class="title" data-tauri-drag-region>{title}</div>
     <div class="artist" data-tauri-drag-region>{artist}</div>
   </div>
 
   <div class="controls">
-    <button aria-label="Previous" title="Previous">
+    <button aria-label="Previous" title="Previous (Ctrl+Alt+←)" onclick={() => media("previous")}>
       <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z" /></svg>
     </button>
-    <button class="play" aria-label={playing ? "Pause" : "Play"} title="Play / Pause">
+    <button class="play" aria-label={playing ? "Pause" : "Play"} title="Play / Pause (Ctrl+Alt+P)" onclick={() => media("toggle")}>
       {#if playing}
         <svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>
       {:else}
         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
       {/if}
     </button>
-    <button aria-label="Next" title="Next">
+    <button aria-label="Next" title="Next (Ctrl+Alt+→)" onclick={() => media("next")}>
       <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" /></svg>
     </button>
   </div>
@@ -81,6 +115,18 @@
     border-radius: 10px;
     background: linear-gradient(135deg, var(--c2), var(--c1));
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+  }
+  .art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    animation: art-in 450ms ease;
+  }
+  @keyframes art-in {
+    from { opacity: 0; transform: scale(0.85) rotateY(60deg); }
+    to { opacity: 1; transform: none; }
   }
 
   .meta { flex: 1; min-width: 0; line-height: 1.25; }
