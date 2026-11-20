@@ -194,6 +194,33 @@ fn open_panel(app: &AppHandle, event: &str) {
     let _ = app.emit(event, ());
 }
 
+// ---- hold-to-repeat for next/previous ------------------------------------------
+// Windows registers hotkeys with "no repeat", so holding a shortcut fires it
+// once. For skipping, holding should keep going: repeat until it's released.
+
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Incremented on every press/release; a repeat loop stops once it changes.
+static REPEAT_GEN: AtomicU64 = AtomicU64::new(0);
+const REPEAT_DELAY: std::time::Duration = std::time::Duration::from_millis(450);
+const REPEAT_EVERY: std::time::Duration = std::time::Duration::from_millis(350);
+
+fn start_repeat(app: &AppHandle, action: Action) {
+    let generation = REPEAT_GEN.fetch_add(1, Ordering::SeqCst) + 1;
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(REPEAT_DELAY);
+        while REPEAT_GEN.load(Ordering::SeqCst) == generation {
+            run_action(&app, action);
+            std::thread::sleep(REPEAT_EVERY);
+        }
+    });
+}
+
+fn stop_repeat() {
+    REPEAT_GEN.fetch_add(1, Ordering::SeqCst);
+}
+
 fn run_action(app: &AppHandle, action: Action) {
     match action {
         Action::Toggle => toggle_widget(app),
@@ -231,12 +258,17 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if event.state() != ShortcutState::Pressed {
+                    let Some(action) = app.try_state::<SettingsState>().and_then(|s| s.action_for(shortcut)) else {
                         return;
-                    }
-                    let action = app.try_state::<SettingsState>().and_then(|s| s.action_for(shortcut));
-                    if let Some(action) = action {
-                        run_action(app, action);
+                    };
+                    match event.state() {
+                        ShortcutState::Pressed => {
+                            run_action(app, action);
+                            if matches!(action, Action::Next | Action::Previous) {
+                                start_repeat(app, action);
+                            }
+                        }
+                        ShortcutState::Released => stop_repeat(),
                     }
                 })
                 .build(),
