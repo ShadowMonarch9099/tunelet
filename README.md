@@ -10,6 +10,9 @@ A tiny, always-on-top Spotify mini-player for Windows. It floats over whatever y
 - **Album-adaptive look** — the widget's colors shift to match the current cover
 - **Doesn't get in your way** — clicking it keeps focus in your current app; hidden from the taskbar and Alt+Tab
 - **Search anything** — expand the pill to search Spotify and play or queue songs, albums and playlists
+- **Your playlists** — Liked Songs and all your playlists, one keypress away
+- **Like songs** — heart button or `Ctrl+Alt+L` from any app
+- **Seek, volume, devices** — drag the progress line, set Spotify's volume, move playback to your phone or speakers
 - **Global hotkeys** — work from any app, and you can change them
 - **Settings** — hotkeys, opacity, start with Windows
 - **Updates itself** — new versions install from inside the app
@@ -46,8 +49,10 @@ Defaults — change any of them in Settings.
 | `Ctrl+Alt+F` | Show and jump to search |
 | `Ctrl+Alt+P` | Play / pause |
 | `Ctrl+Alt+←` / `→` | Previous / next |
+| `Ctrl+Alt+L` | Like / unlike the current song |
 | `Esc` | Close search / hide the widget |
 | `↑` `↓` `Enter` | In search: choose and play (`Shift+Enter` adds a song to the queue) |
+| `Tab` | In the panel: switch between Search and Your playlists |
 
 ## Build from source
 
@@ -71,7 +76,7 @@ Release builds sign update files with the key in `%USERPROFILE%\.tauri\tunelet.k
 - [x] Search, play, queue
 - [x] Settings: custom hotkeys, opacity, start with Windows
 - [x] x64 + ARM64 installers, in-app updates
-- [ ] Like button, your playlists, seek, volume, device switch
+- [x] Like button, your playlists, seek, volume, device switch
 
 ## Tech
 

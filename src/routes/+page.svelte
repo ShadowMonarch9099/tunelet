@@ -3,7 +3,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
 
   type NowPlaying = {
     available: boolean;
@@ -16,14 +16,17 @@
   };
   type AuthStatus = { clientId: string | null; loggedIn: boolean; redirectUri: string };
   type Item = {
-    kind: "track" | "album" | "playlist";
+    kind: "track" | "album" | "playlist" | "liked";
     uri: string;
     name: string;
     subtitle: string;
     image: string | null;
   };
+  type Timeline = { positionMs: number; durationMs: number; playing: boolean };
+  type Device = { id: string; name: string; kind: string; active: boolean; volume: number | null; supportsVolume: boolean };
+  type PlayerState = { active: boolean; device: Device | null; trackUri: string | null; liked: boolean | null; isPlaying: boolean };
 
-  type Action = "toggle" | "search" | "playPause" | "next" | "previous";
+  type Action = "toggle" | "search" | "playPause" | "next" | "previous" | "like";
   type Settings = { hotkeys: Record<Action, string>; opacity: number };
   type HotkeyError = { action: Action; combo: string; reason: "taken" | "invalid" | "duplicate" };
   type SettingsView = { settings: Settings; autostart: boolean; version: string; hotkeyErrors: HotkeyError[] };
@@ -32,13 +35,14 @@
     | { state: "available"; version: string }
     | { state: "error"; msg: string };
 
-  const ACTIONS: Action[] = ["toggle", "search", "playPause", "next", "previous"];
+  const ACTIONS: Action[] = ["toggle", "search", "playPause", "next", "previous", "like"];
   const LABELS: Record<Action, string> = {
     toggle: "Show / hide",
     search: "Search",
     playPause: "Play / pause",
     next: "Next song",
     previous: "Previous song",
+    like: "Like / unlike song",
   };
   const HOTKEY_PROBLEM = {
     taken: "Used by another app. Pick another.",
@@ -47,7 +51,7 @@
   };
 
   const IDLE: [string, string] = ["#3a2a5c", "#12324a"];
-  const WIDTH = 320;
+  const WIDTH = 344;
   const PILL_H = 64;
   const EXPANDED_H = 460;
 
@@ -59,6 +63,32 @@
   let art = $derived(np?.available ? np.art : null);
   let c1 = $derived(np?.available && np.colors ? np.colors[0] : IDLE[0]);
   let c2 = $derived(np?.available && np.colors ? np.colors[1] : IDLE[1]);
+
+  // ---- progress / seek -------------------------------------------------------
+  let tl = $state<(Timeline & { at: number }) | null>(null);
+  let clock = $state(performance.now());
+  let dragFrac = $state<number | null>(null);
+  let progressEl = $state<HTMLDivElement | null>(null);
+  let positionMs = $derived.by(() => {
+    if (!tl) return 0;
+    const p = tl.playing ? tl.positionMs + (clock - tl.at) : tl.positionMs;
+    return Math.min(p, tl.durationMs);
+  });
+  let durationMs = $derived(tl?.durationMs ?? 0);
+  let progressFrac = $derived(dragFrac ?? (durationMs > 0 ? positionMs / durationMs : 0));
+
+  // ---- player (Web API) ------------------------------------------------------
+  let player = $state<PlayerState | null>(null);
+  let liked = $state<boolean | null>(null);
+  let likeBusy = $state(false);
+  let pillNote = $state("");
+  let pillNoteTimer: ReturnType<typeof setTimeout> | undefined;
+  let volume = $state<number | null>(null);
+  let volumeTimer: ReturnType<typeof setTimeout> | undefined;
+  let devices = $state<Device[] | null>(null);
+  let tab = $state<"search" | "playlists">("search");
+  let playlists = $state<Item[] | null>(null);
+  let playlistsLoading = $state(false);
 
   // ---- expanded panel ------------------------------------------------------
   let expanded = $state(false);
@@ -93,16 +123,180 @@
       listen<NowPlaying>("now-playing", (e) => (np = e.payload)),
       listen("open-search", () => {
         view = "main";
+        tab = "search";
         expand();
       }),
       listen("open-settings", () => openSettings()),
+      listen<Timeline>("timeline", (e) => {
+        tl = { ...e.payload, at: performance.now() };
+        clock = tl.at;
+      }),
+      listen<{ liked?: boolean; error?: string }>("like-result", (e) => {
+        if (e.payload.error)
+          return flashNote(e.payload.error === "not_logged_in" ? "Connect Spotify to like songs" : e.payload.error);
+        liked = !!e.payload.liked;
+        flashNote(liked ? "♥ Added to Liked Songs" : "Removed from Liked Songs");
+      }),
     ];
+    const ticker = setInterval(() => (clock = performance.now()), 250);
+    const playerPoll = setInterval(() => {
+      if (expanded && auth?.loggedIn && view === "main") refreshPlayer();
+    }, 5000);
     invoke("media", { action: "refresh" });
     loadAuth();
     loadSettings();
     checkUpdate(true);
-    return () => offs.forEach((o) => o.then((f) => f()));
+    return () => {
+      offs.forEach((o) => o.then((f) => f()));
+      clearInterval(ticker);
+      clearInterval(playerPoll);
+    };
   });
+
+  // When the song changes, ask Spotify whether it's liked (and refresh the device/volume).
+  let trackKey = $derived(np?.available ? `${np.title}\u0001${np.artist}` : "");
+  $effect(() => {
+    const key = trackKey;
+    const loggedIn = auth?.loggedIn;
+    untrack(() => {
+      liked = null;
+      if (key && loggedIn) setTimeout(refreshPlayer, 900); // Spotify's API lags the app slightly
+    });
+  });
+
+  async function refreshPlayer() {
+    try {
+      const p = await invoke<PlayerState>("spotify_player");
+      player = p;
+      liked = p.liked;
+      if (p.device?.volume != null && volumeTimer === undefined) volume = p.device.volume;
+    } catch (e) {
+      if (String(e) === "not_logged_in") loadAuth();
+    }
+  }
+
+  function flashNote(msg: string) {
+    pillNote = msg;
+    clearTimeout(pillNoteTimer);
+    pillNoteTimer = setTimeout(() => (pillNote = ""), 2200);
+  }
+
+  async function toggleLike() {
+    if (likeBusy) return;
+    likeBusy = true;
+    try {
+      if (player?.trackUri?.startsWith("spotify:track:") && liked !== null) {
+        const next = !liked;
+        liked = next;
+        await invoke("spotify_set_liked", { uri: player.trackUri, liked: next });
+        flashNote(next ? "♥ Added to Liked Songs" : "Removed from Liked Songs");
+      } else {
+        liked = await invoke<boolean>("spotify_toggle_like");
+        flashNote(liked ? "♥ Added to Liked Songs" : "Removed from Liked Songs");
+      }
+    } catch (e) {
+      await refreshPlayer();
+      flashNote(String(e) === "not_logged_in" ? "Connect Spotify to like songs" : String(e));
+    } finally {
+      likeBusy = false;
+    }
+  }
+
+  function fmt(ms: number) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
+  function fracFromEvent(e: PointerEvent) {
+    const r = progressEl!.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  }
+
+  function seekDown(e: PointerEvent) {
+    if (!durationMs) return;
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    dragFrac = fracFromEvent(e);
+  }
+
+  function seekMove(e: PointerEvent) {
+    if (dragFrac !== null) dragFrac = fracFromEvent(e);
+  }
+
+  async function seekUp(e: PointerEvent) {
+    if (dragFrac === null) return;
+    const ms = Math.round(fracFromEvent(e) * durationMs);
+    dragFrac = null;
+    if (tl) tl = { ...tl, positionMs: ms, at: performance.now() };
+    try {
+      if (auth?.loggedIn) await invoke("spotify_seek", { positionMs: ms });
+      else await invoke("media_seek", { positionMs: ms });
+    } catch {
+      await invoke("media_seek", { positionMs: ms });
+    }
+  }
+
+  function onVolumeInput(v: number) {
+    volume = v;
+    clearTimeout(volumeTimer);
+    volumeTimer = setTimeout(async () => {
+      volumeTimer = undefined;
+      try {
+        await invoke("spotify_volume", { percent: v });
+      } catch (e) {
+        handleError(e);
+      }
+    }, 150);
+  }
+
+  async function toggleDevices() {
+    if (devices) {
+      devices = null;
+      return;
+    }
+    try {
+      devices = await invoke<Device[]>("spotify_devices");
+    } catch (e) {
+      handleError(e);
+    }
+  }
+
+  async function pickDevice(d: Device) {
+    devices = null;
+    if (d.active) return;
+    try {
+      await invoke("spotify_transfer", { deviceId: d.id });
+      showToast(`Playing on ${d.name}`);
+      setTimeout(refreshPlayer, 800);
+    } catch (e) {
+      handleError(e);
+    }
+  }
+
+  async function showTab(t: "search" | "playlists") {
+    tab = t;
+    selected = 0;
+    error = "";
+    if (t === "playlists" && !playlists) await loadPlaylists();
+    await tick();
+    searchInput?.focus();
+  }
+
+  async function loadPlaylists() {
+    playlistsLoading = true;
+    try {
+      playlists = await invoke<Item[]>("spotify_playlists");
+    } catch (e) {
+      handleError(e);
+    } finally {
+      playlistsLoading = false;
+    }
+  }
+
+  let filteredPlaylists = $derived(
+    (playlists ?? []).filter((p) => !query.trim() || p.name.toLowerCase().includes(query.trim().toLowerCase())),
+  );
+  let listItems = $derived(tab === "search" ? results : filteredPlaylists);
 
   async function loadSettings() {
     sv = await invoke<SettingsView>("get_settings");
@@ -223,6 +417,7 @@
     if (auth?.loggedIn && view === "main") {
       searchInput?.focus();
       searchInput?.select();
+      refreshPlayer();
     }
   }
 
@@ -231,6 +426,7 @@
     if (recording) await stopRecording();
     expanded = false;
     view = "main";
+    devices = null;
     error = "";
     await tick();
     await win.setSize(new LogicalSize(WIDTH, PILL_H));
@@ -272,6 +468,9 @@
     await invoke("spotify_logout");
     results = [];
     query = "";
+    playlists = null;
+    player = null;
+    liked = null;
     await loadAuth();
   }
 
@@ -286,6 +485,8 @@
   function onQueryInput() {
     clearTimeout(searchTimer);
     error = "";
+    selected = 0;
+    if (tab === "playlists") return; // filtered locally
     if (!query.trim()) {
       results = [];
       searching = false;
@@ -331,15 +532,18 @@
   function onSearchKey(e: KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      selected = Math.min(selected + 1, results.length - 1);
+      selected = Math.min(selected + 1, listItems.length - 1);
       scrollSelected();
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       selected = Math.max(selected - 1, 0);
       scrollSelected();
-    } else if (e.key === "Enter" && results[selected]) {
+    } else if (e.key === "Tab") {
       e.preventDefault();
-      const item = results[selected];
+      showTab(tab === "search" ? "playlists" : "search");
+    } else if (e.key === "Enter" && listItems[selected]) {
+      e.preventDefault();
+      const item = listItems[selected];
       if (e.shiftKey && item.kind === "track") addToQueue(item);
       else play(item);
     }
@@ -377,7 +581,7 @@
     if (expanded && auth?.loggedIn && !loggingIn && view === "main") collapse();
   }
 
-  const kindLabel = { track: "Song", album: "Album", playlist: "Playlist" };
+  const kindLabel = { track: "Song", album: "Album", playlist: "Playlist", liked: "Liked" };
 </script>
 
 <svelte:window onkeydown={onKey} onblur={onWindowBlur} />
@@ -394,10 +598,26 @@
 
     <div class="meta" data-tauri-drag-region title={np?.available ? `${np.title} — ${np.artist}` : ""}>
       <div class="title" data-tauri-drag-region>{title}</div>
-      <div class="artist" data-tauri-drag-region>{artist}</div>
+      <div class="artist" class:note={!!pillNote} data-tauri-drag-region>{pillNote || artist}</div>
     </div>
 
     <div class="controls">
+      {#if auth?.loggedIn && np?.available}
+        <button
+          class="heart"
+          class:liked={liked === true}
+          aria-label={liked ? "Remove from Liked Songs" : "Add to Liked Songs"}
+          title="{liked ? 'Unlike' : 'Like'} ({hk('like')})"
+          disabled={likeBusy}
+          onclick={toggleLike}
+        >
+          {#if liked}
+            <svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.7 4.5c2.1 0 3.6 1.1 5.3 3 1.7-1.9 3.2-3 5.3-3 3.7 0 5.8 3.8 4.3 7.2C19.5 16.4 12 21 12 21z" /></svg>
+          {:else}
+            <svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.3C.9 8.3 3 4.5 6.7 4.5c2.1 0 3.6 1.1 5.3 3 1.7-1.9 3.2-3 5.3-3 3.7 0 5.8 3.8 4.3 7.2C19.5 16.4 12 21 12 21zm0-2.4c2.2-1.5 6.2-4.6 7.6-7.7 1-2.2-.3-4.4-2.6-4.4-1.6 0-2.7 1-4.2 2.8L12 10.2l-.8-.9C9.7 7.5 8.6 6.5 7 6.5c-2.3 0-3.6 2.2-2.6 4.4 1.4 3.1 5.4 6.2 7.6 7.7z" /></svg>
+          {/if}
+        </button>
+      {/if}
       <button aria-label="Previous" title="Previous ({hk('previous')})" onclick={() => media("previous")}>
         <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z" /></svg>
       </button>
@@ -428,6 +648,26 @@
     </div>
 
     <button class="close" aria-label="Hide" title="Hide ({hk('toggle')})" onclick={hide}>×</button>
+
+    {#if np?.available && durationMs > 0}
+      <div
+        class="progress"
+        class:dragging={dragFrac !== null}
+        bind:this={progressEl}
+        role="slider"
+        tabindex="-1"
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={durationMs}
+        aria-valuenow={positionMs}
+        title={`${fmt(dragFrac !== null ? dragFrac * durationMs : positionMs)} / ${fmt(durationMs)}`}
+        onpointerdown={seekDown}
+        onpointermove={seekMove}
+        onpointerup={seekUp}
+      >
+        <div class="progress-fill" style="width: {progressFrac * 100}%"></div>
+      </div>
+    {/if}
   </main>
 
   {#if expanded}
@@ -548,6 +788,11 @@
           {#if error}<p class="error">{error}</p>{/if}
         </div>
       {:else}
+        <div class="tabs">
+          <button class:on={tab === "search"} onclick={() => showTab("search")}>Search</button>
+          <button class:on={tab === "playlists"} onclick={() => showTab("playlists")}>Your playlists</button>
+        </div>
+
         <div class="search-bar">
           <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 0 1 4.8 9.6l4.8 4.8-1.4 1.4-4.8-4.8A6 6 0 1 1 10 4zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" /></svg>
           <input
@@ -555,55 +800,94 @@
             bind:value={query}
             oninput={onQueryInput}
             onkeydown={onSearchKey}
-            placeholder="Search songs, albums, playlists"
+            placeholder={tab === "search" ? "Search songs, albums, playlists" : "Filter your playlists"}
             spellcheck="false"
           />
-          {#if searching}<span class="spinner"></span>{/if}
+          {#if searching || playlistsLoading}<span class="spinner"></span>{/if}
         </div>
 
         <div class="results">
-          {#if error}
+          {#if devices}
+            <div class="devices">
+              <div class="devices-title">Play on</div>
+              {#each devices as d (d.id)}
+                <button class="device" class:current={d.active} onclick={() => pickDevice(d)}>
+                  <span class="device-icon">{d.kind === "Smartphone" ? "📱" : d.kind === "Computer" ? "💻" : "🔊"}</span>
+                  <span class="device-name">{d.name}</span>
+                  {#if d.active}<span class="badge">Playing</span>{/if}
+                </button>
+              {:else}
+                <div class="center muted">No devices found. Open Spotify on a device first.</div>
+              {/each}
+            </div>
+          {:else if error}
             <p class="error pad">{error}</p>
-          {:else if !query.trim()}
+          {:else if tab === "search" && !query.trim()}
             <div class="center muted hint">
               Type to search<br />
-              <span>↑↓ choose · Enter play · Shift+Enter queue · Esc close</span>
+              <span>↑↓ choose · Enter play · Shift+Enter queue · Tab playlists · Esc close</span>
             </div>
-          {:else if !searching && results.length === 0}
+          {:else if tab === "search" && !searching && results.length === 0}
             <div class="center muted">No results</div>
+          {:else if tab === "playlists" && playlists && filteredPlaylists.length === 0}
+            <div class="center muted">{query.trim() ? "No matching playlists" : "No playlists yet"}</div>
           {/if}
 
-          {#each results as item, i (item.uri)}
-            <div
-              class="result"
-              class:selected={i === selected}
-              role="button"
-              tabindex="-1"
-              onmouseenter={() => (selected = i)}
-              onclick={() => play(item)}
-              onkeydown={() => {}}
-            >
-              <div class="thumb">
-                {#if item.image}<img src={item.image} alt="" draggable="false" />{/if}
-              </div>
-              <div class="info">
-                <div class="name">{item.name}</div>
-                <div class="sub">
-                  {#if item.kind !== "track"}<span class="badge">{kindLabel[item.kind]}</span>{/if}
-                  {item.kind === "track" ? item.subtitle : item.subtitle.replace(/^(Album|Playlist) · /, "")}
+          {#if !devices}
+            {#each listItems as item, i (item.uri)}
+              <div
+                class="result"
+                class:selected={i === selected}
+                role="button"
+                tabindex="-1"
+                onmouseenter={() => (selected = i)}
+                onclick={() => play(item)}
+                onkeydown={() => {}}
+              >
+                <div class="thumb" class:liked-tile={item.kind === "liked"}>
+                  {#if item.kind === "liked"}♥{:else if item.image}<img src={item.image} alt="" draggable="false" />{/if}
                 </div>
+                <div class="info">
+                  <div class="name">{item.name}</div>
+                  <div class="sub">
+                    {#if tab === "search" && item.kind !== "track"}<span class="badge">{kindLabel[item.kind]}</span>{/if}
+                    {tab === "search" && item.kind !== "track" ? item.subtitle.replace(/^(Album|Playlist) · /, "") : item.subtitle}
+                  </div>
+                </div>
+                {#if item.kind === "track"}
+                  <button
+                    class="chip queue"
+                    title="Add to queue (Shift+Enter)"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      addToQueue(item);
+                    }}>+ Queue</button>
+                {/if}
               </div>
-              {#if item.kind === "track"}
-                <button
-                  class="chip queue"
-                  title="Add to queue (Shift+Enter)"
-                  onclick={(e) => {
-                    e.stopPropagation();
-                    addToQueue(item);
-                  }}>+ Queue</button>
-              {/if}
-            </div>
-          {/each}
+            {/each}
+          {/if}
+        </div>
+
+        <div class="player-bar">
+          <span class="time">{durationMs ? `${fmt(positionMs)} / ${fmt(durationMs)}` : "–:–"}</span>
+          {#if player?.device?.supportsVolume !== false}
+            <span class="vol">
+              <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 5V4L8 9H4zm12.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z" /></svg>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volume ?? 50}
+                disabled={volume === null}
+                title={volume === null ? "Play something to change volume" : `Volume ${volume}%`}
+                oninput={(e) => onVolumeInput(+e.currentTarget.value)}
+              />
+            </span>
+          {/if}
+          <button class="chip device-btn" class:on={!!devices} title="Choose where to play" onclick={toggleDevices}>
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v10H4zm-2 12h20v2H2z" /></svg>
+            <span>{player?.device?.name ?? "Devices"}</span>
+          </button>
         </div>
       {/if}
 
@@ -917,6 +1201,97 @@
   }
   .primary:hover { background: #fff; opacity: 0.9; }
   .primary:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---- pill extras ---- */
+  .artist.note { opacity: 1; font-weight: 600; }
+  .heart svg { width: 17px; height: 17px; }
+  .heart.liked { color: #1ed760; }
+  .heart.liked svg { animation: pop 300ms ease; }
+  @keyframes pop { 50% { transform: scale(1.3); } }
+  button:disabled { cursor: default; }
+
+  .progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 10px;
+    display: flex;
+    align-items: flex-end;
+    cursor: pointer;
+  }
+  .progress-fill {
+    height: 2px;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 0 2px 2px 0;
+    transition: height 120ms;
+  }
+  .progress::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    transition: height 120ms;
+  }
+  .progress:hover .progress-fill,
+  .progress.dragging .progress-fill,
+  .progress:hover::before,
+  .progress.dragging::before { height: 5px; }
+
+  /* ---- tabs, devices, player bar ---- */
+  .tabs { display: flex; gap: 4px; margin: 10px 10px 0; }
+  .tabs button {
+    width: auto;
+    height: 26px;
+    padding: 0 12px;
+    border-radius: 13px;
+    font-size: 12px;
+    opacity: 0.75;
+  }
+  .tabs button.on { background: rgba(255, 255, 255, 0.92); color: #111; opacity: 1; font-weight: 600; }
+
+  .liked-tile {
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+    background: linear-gradient(135deg, #4a1fb8, #8fd3c3);
+  }
+
+  .devices { padding: 4px; }
+  .devices-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin: 4px 6px 6px; }
+  .device {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 10px;
+    text-align: left;
+    font-size: 13px;
+  }
+  .device.current { background: rgba(255, 255, 255, 0.12); }
+  .device-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .player-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 11px;
+  }
+  .time { font-variant-numeric: tabular-nums; opacity: 0.75; min-width: 70px; }
+  .vol { display: flex; align-items: center; gap: 4px; flex: 1; }
+  .vol svg { width: 15px; height: 15px; fill: currentColor; opacity: 0.75; flex: none; }
+  .vol input { width: 100%; min-width: 50px; accent-color: #fff; }
+  .device-btn { display: flex; gap: 4px; max-width: 110px; height: 24px; }
+  .device-btn svg { width: 13px; height: 13px; flex: none; }
+  .device-btn span { overflow: hidden; text-overflow: ellipsis; }
+  .device-btn.on { background: rgba(255, 255, 255, 0.3); }
 
   /* ---- settings ---- */
   .settings { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 14px 10px; font-size: 12.5px; }

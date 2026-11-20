@@ -15,14 +15,16 @@ pub enum Action {
     PlayPause,
     Next,
     Previous,
+    Like,
 }
 
-const DEFAULT_HOTKEYS: [(Action, &str); 5] = [
+const DEFAULT_HOTKEYS: [(Action, &str); 6] = [
     (Action::Toggle, "Ctrl+Alt+KeyS"),
     (Action::Search, "Ctrl+Alt+KeyF"),
     (Action::PlayPause, "Ctrl+Alt+KeyP"),
     (Action::Next, "Ctrl+Alt+ArrowRight"),
     (Action::Previous, "Ctrl+Alt+ArrowLeft"),
+    (Action::Like, "Ctrl+Alt+KeyL"),
 ];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -20,10 +20,22 @@ pub struct NowPlaying {
     pub colors: Option<[String; 2]>,
 }
 
+/// Playback position, sent separately (and often) so the large now-playing
+/// payload with the cover image only goes out when something changes.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Timeline {
+    pub position_ms: u64,
+    pub duration_ms: u64,
+    pub playing: bool,
+}
+
 pub enum Cmd {
     TogglePlay,
     Next,
     Previous,
+    /// Jump to a position in the current song (Windows media controls).
+    Seek(u64),
     /// Re-send the current state (used when the UI loads).
     Refresh,
 }
@@ -55,7 +67,7 @@ pub fn start(_app: tauri::AppHandle) -> Media {
 
 #[cfg(windows)]
 mod win {
-    use super::{Cmd, NowPlaying};
+    use super::{Cmd, NowPlaying, Timeline};
     use base64::Engine;
     use std::{
         sync::mpsc::{Receiver, RecvTimeoutError},
@@ -122,6 +134,9 @@ mod win {
                 let _ = app.emit("now-playing", &state);
                 last = state;
             }
+            if let Some(t) = w.spotify_session().and_then(|s| timeline(&s).ok()) {
+                let _ = app.emit("timeline", &t);
+            }
         }
     }
 
@@ -130,9 +145,38 @@ mod win {
             Cmd::TogglePlay => s.TryTogglePlayPauseAsync()?.join()?,
             Cmd::Next => s.TrySkipNextAsync()?.join()?,
             Cmd::Previous => s.TrySkipPreviousAsync()?.join()?,
+            Cmd::Seek(ms) => s.TryChangePlaybackPositionAsync(ms as i64 * 10_000)?.join()?,
             Cmd::Refresh => true,
         };
         Ok(())
+    }
+
+    /// Current time in Windows' 100-ns ticks since 1601 (the DateTime epoch).
+    fn now_ticks() -> i64 {
+        let unix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default();
+        (unix.as_nanos() / 100) as i64 + 116_444_736_000_000_000
+    }
+
+    fn timeline(s: &Session) -> Result<Timeline> {
+        let t = s.GetTimelineProperties()?;
+        let playing = s.GetPlaybackInfo()?.PlaybackStatus()? == Status::Playing;
+        let end = t.EndTime()?.Duration.max(0);
+        let mut pos = t.Position()?.Duration;
+        // Apps update the position only now and then; extrapolate while playing.
+        if playing {
+            let elapsed = now_ticks() - t.LastUpdatedTime()?.UniversalTime;
+            if elapsed > 0 {
+                pos += elapsed;
+            }
+        }
+        let pos = pos.clamp(0, end.max(0));
+        Ok(Timeline {
+            position_ms: (pos / 10_000) as u64,
+            duration_ms: (end / 10_000) as u64,
+            playing,
+        })
     }
 
     impl Worker {

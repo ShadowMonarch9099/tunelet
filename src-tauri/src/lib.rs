@@ -137,6 +137,12 @@ fn media(app: AppHandle, action: String) {
     send_media(&app, cmd);
 }
 
+/// Seek via Windows media controls (works without a Spotify login).
+#[tauri::command]
+fn media_seek(app: AppHandle, position_ms: u64) {
+    send_media(&app, Cmd::Seek(position_ms));
+}
+
 
 fn open_panel(app: &AppHandle, event: &str) {
     show_widget(app);
@@ -150,6 +156,17 @@ fn run_action(app: &AppHandle, action: Action) {
         Action::PlayPause => send_media(app, Cmd::TogglePlay),
         Action::Next => send_media(app, Cmd::Next),
         Action::Previous => send_media(app, Cmd::Previous),
+        Action::Like => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let sp = app.state::<spotify::Spotify>();
+                let result = match sp.toggle_like_current().await {
+                    Ok(liked) => serde_json::json!({ "liked": liked }),
+                    Err(e) => serde_json::json!({ "error": e }),
+                };
+                let _ = app.emit("like-result", result);
+            });
+        }
     }
 }
 
@@ -229,12 +246,21 @@ pub fn run() {
             hide_widget,
             set_interactive,
             media,
+            media_seek,
             spotify::spotify_status,
             spotify::spotify_login,
             spotify::spotify_logout,
             spotify::spotify_search,
             spotify::spotify_play,
             spotify::spotify_queue,
+            spotify::spotify_player,
+            spotify::spotify_set_liked,
+            spotify::spotify_toggle_like,
+            spotify::spotify_seek,
+            spotify::spotify_volume,
+            spotify::spotify_devices,
+            spotify::spotify_transfer,
+            spotify::spotify_playlists,
             settings::get_settings,
             settings::save_settings,
             settings::default_settings,

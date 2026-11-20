@@ -376,6 +376,97 @@ fn parse_search(v: &Value) -> Vec<Item> {
     out
 }
 
+// ---- player, library, devices ----------------------------------------------
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Device {
+    id: String,
+    name: String,
+    kind: String,
+    active: bool,
+    volume: Option<u64>,
+    supports_volume: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerState {
+    /// False when no device is playing or paused anywhere.
+    active: bool,
+    device: Option<Device>,
+    track_uri: Option<String>,
+    liked: Option<bool>,
+    is_playing: bool,
+}
+
+fn parse_device(d: &Value) -> Option<Device> {
+    Some(Device {
+        id: d["id"].as_str()?.into(),
+        name: d["name"].as_str().unwrap_or("Unknown device").into(),
+        kind: d["type"].as_str().unwrap_or_default().into(),
+        active: d["is_active"].as_bool().unwrap_or(false),
+        volume: d["volume_percent"].as_u64(),
+        supports_volume: d["supports_volume"].as_bool().unwrap_or(true),
+    })
+}
+
+impl Spotify {
+    async fn is_liked(&self, uri: &str) -> Res<bool> {
+        let resp = self.api(Method::GET, "/me/library/contains", &[("uris", uri)], None).await?;
+        let v: Value = Self::check(resp).await?.json().await.map_err(net_err)?;
+        Ok(v.get(0).and_then(Value::as_bool).unwrap_or(false))
+    }
+
+    async fn set_liked(&self, uri: &str, liked: bool) -> Res<()> {
+        let method = if liked { Method::PUT } else { Method::DELETE };
+        Self::check(self.api(method, "/me/library", &[("uris", uri)], None).await?).await?;
+        Ok(())
+    }
+
+    async fn player(&self) -> Res<PlayerState> {
+        let resp = self.api(Method::GET, "/me/player", &[], None).await?;
+        if resp.status() == StatusCode::NO_CONTENT {
+            return Ok(PlayerState { active: false, device: None, track_uri: None, liked: None, is_playing: false });
+        }
+        let v: Value = Self::check(resp).await?.json().await.map_err(net_err)?;
+        let track_uri = v["item"]["uri"].as_str().map(String::from);
+        let liked = match track_uri.as_deref() {
+            Some(uri) if uri.starts_with("spotify:track:") => self.is_liked(uri).await.ok(),
+            _ => None,
+        };
+        Ok(PlayerState {
+            active: true,
+            device: parse_device(&v["device"]),
+            track_uri,
+            liked,
+            is_playing: v["is_playing"].as_bool().unwrap_or(false),
+        })
+    }
+
+    /// Likes the current song, or unlikes it if it's already liked.
+    /// Returns the new liked state.
+    pub async fn toggle_like_current(&self) -> Res<bool> {
+        let p = self.player().await?;
+        let uri = p
+            .track_uri
+            .filter(|u| u.starts_with("spotify:track:"))
+            .ok_or("Nothing to like right now.")?;
+        let liked = !self.is_liked(&uri).await?;
+        self.set_liked(&uri, liked).await?;
+        Ok(liked)
+    }
+
+    async fn user_id(&self) -> Res<String> {
+        let v: Value = Self::check(self.api(Method::GET, "/me", &[], None).await?)
+            .await?
+            .json()
+            .await
+            .map_err(net_err)?;
+        v["id"].as_str().map(String::from).ok_or_else(|| "Couldn't read your Spotify profile.".into())
+    }
+}
+
 // ---- Tauri commands -------------------------------------------------------
 
 #[tauri::command]
@@ -439,4 +530,82 @@ pub async fn spotify_queue(sp: State<'_, Spotify>, uri: String) -> Res<()> {
     let resp = sp.api(Method::POST, "/me/player/queue", &[("uri", &uri)], None).await?;
     Spotify::check(resp).await?;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn spotify_player(sp: State<'_, Spotify>) -> Res<PlayerState> {
+    sp.player().await
+}
+
+#[tauri::command]
+pub async fn spotify_set_liked(sp: State<'_, Spotify>, uri: String, liked: bool) -> Res<()> {
+    sp.set_liked(&uri, liked).await
+}
+
+#[tauri::command]
+pub async fn spotify_toggle_like(sp: State<'_, Spotify>) -> Res<bool> {
+    sp.toggle_like_current().await
+}
+
+#[tauri::command]
+pub async fn spotify_seek(sp: State<'_, Spotify>, position_ms: u64) -> Res<()> {
+    let pos = position_ms.to_string();
+    Spotify::check(sp.api(Method::PUT, "/me/player/seek", &[("position_ms", &pos)], None).await?).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn spotify_volume(sp: State<'_, Spotify>, percent: u8) -> Res<()> {
+    let pct = percent.min(100).to_string();
+    Spotify::check(sp.api(Method::PUT, "/me/player/volume", &[("volume_percent", &pct)], None).await?).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn spotify_devices(sp: State<'_, Spotify>) -> Res<Vec<Device>> {
+    let resp = Spotify::check(sp.api(Method::GET, "/me/player/devices", &[], None).await?).await?;
+    let v: Value = resp.json().await.map_err(net_err)?;
+    Ok(v["devices"].as_array().map(|a| a.iter().filter_map(parse_device).collect()).unwrap_or_default())
+}
+
+/// Moves playback to another device (phone, speaker, PC…), keeping it playing.
+#[tauri::command]
+pub async fn spotify_transfer(sp: State<'_, Spotify>, device_id: String) -> Res<()> {
+    let body = json!({ "device_ids": [device_id], "play": true });
+    Spotify::check(sp.api(Method::PUT, "/me/player", &[], Some(body)).await?).await?;
+    Ok(())
+}
+
+/// "Liked Songs" first, then the user's playlists.
+#[tauri::command]
+pub async fn spotify_playlists(sp: State<'_, Spotify>) -> Res<Vec<Item>> {
+    let mut out = Vec::new();
+    if let Ok(id) = sp.user_id().await {
+        out.push(Item {
+            kind: "liked",
+            uri: format!("spotify:user:{id}:collection"),
+            name: "Liked Songs".into(),
+            subtitle: "Your liked songs".into(),
+            image: None,
+        });
+    }
+    let resp = Spotify::check(sp.api(Method::GET, "/me/playlists", &[("limit", "50")], None).await?).await?;
+    let v: Value = resp.json().await.map_err(net_err)?;
+    for p in v["items"].as_array().cloned().unwrap_or_default().iter().filter(|p| !p.is_null()) {
+        // Feb 2026 API renamed `tracks` to `items`; accept either.
+        let total = p["items"]["total"].as_u64().or_else(|| p["tracks"]["total"].as_u64());
+        let owner = p["owner"]["display_name"].as_str().unwrap_or("Spotify");
+        out.push(Item {
+            kind: "playlist",
+            uri: p["uri"].as_str().unwrap_or_default().into(),
+            name: p["name"].as_str().unwrap_or_default().into(),
+            subtitle: match total {
+                Some(n) => format!("{n} songs · {owner}"),
+                None => owner.to_string(),
+            },
+            image: smallest_image(&p["images"]),
+        });
+    }
+    out.retain(|i| !i.uri.is_empty());
+    Ok(out)
 }
