@@ -33,8 +33,9 @@ mod native {
     use std::sync::atomic::{AtomicIsize, Ordering};
     use tauri::WebviewWindow;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetForegroundWindow, GetWindowLongPtrW, SetForegroundWindow, SetWindowLongPtrW, ShowWindow,
-        GWL_EXSTYLE, SW_SHOWNOACTIVATE, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        GetForegroundWindow, GetWindowLongPtrW, SetForegroundWindow, SetWindowLongPtrW, SetWindowPos,
+        ShowWindow, GWL_EXSTYLE, SWP_NOACTIVATE, SWP_NOZORDER, SW_SHOWNOACTIVATE, WS_EX_APPWINDOW,
+        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
 
     /// The window that had focus before Tunelet took it, so we can hand it back.
@@ -80,6 +81,13 @@ mod native {
             unsafe { ShowWindow(h, SW_SHOWNOACTIVATE) };
         }
     }
+
+    /// Move and resize in one step (physical pixels), so content never jumps.
+    pub fn set_bounds(w: &WebviewWindow, x: i32, y: i32, width: i32, height: i32) {
+        if let Some(h) = hwnd(w) {
+            unsafe { SetWindowPos(h, core::ptr::null_mut(), x, y, width, height, SWP_NOZORDER | SWP_NOACTIVATE) };
+        }
+    }
 }
 
 #[cfg(not(windows))]
@@ -88,6 +96,10 @@ mod native {
     pub fn set_interactive(_w: &WebviewWindow, _interactive: bool) {}
     pub fn show_no_activate(w: &WebviewWindow) {
         let _ = w.show();
+    }
+    pub fn set_bounds(w: &WebviewWindow, x: i32, y: i32, width: i32, height: i32) {
+        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+        let _ = w.set_size(tauri::PhysicalSize::new(width as u32, height as u32));
     }
 }
 
@@ -123,6 +135,39 @@ fn set_interactive(app: AppHandle, interactive: bool) {
             let _ = w.set_focus();
         }
     }
+}
+
+/// Moves/resizes the widget window in logical (DPI-independent) pixels.
+#[tauri::command]
+fn set_bounds(app: AppHandle, x: f64, y: f64, width: f64, height: f64) {
+    if let Some(w) = main_window(&app) {
+        let s = w.scale_factor().unwrap_or(1.0);
+        let p = |v: f64| (v * s).round() as i32;
+        native::set_bounds(&w, p(x), p(y), p(width), p(height));
+    }
+}
+
+#[derive(serde::Serialize)]
+struct ScreenArea {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+/// The usable area (excluding the taskbar) of the monitor the widget is on, in logical pixels.
+#[tauri::command]
+fn screen_area(app: AppHandle) -> Option<ScreenArea> {
+    let w = main_window(&app)?;
+    let m = w.current_monitor().ok().flatten().or_else(|| w.primary_monitor().ok().flatten())?;
+    let s = m.scale_factor();
+    let a = m.work_area();
+    Some(ScreenArea {
+        x: a.position.x as f64 / s,
+        y: a.position.y as f64 / s,
+        width: a.size.width as f64 / s,
+        height: a.size.height as f64 / s,
+    })
 }
 
 /// Transport controls from the UI: "toggle", "next", "previous" or "refresh".
@@ -177,11 +222,6 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_widget(app);
         }))
-        .plugin(
-            tauri_plugin_window_state::Builder::default()
-                .with_state_flags(tauri_plugin_window_state::StateFlags::POSITION)
-                .build(),
-        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -245,6 +285,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             hide_widget,
             set_interactive,
+            set_bounds,
+            screen_area,
             media,
             media_seek,
             spotify::spotify_status,
