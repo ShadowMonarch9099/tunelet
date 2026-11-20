@@ -16,5 +16,12 @@ if (-not $env:RC -and -not (Get-Command rc.exe -ErrorAction SilentlyContinue)) {
     if ($rc) { $env:RC = $rc.FullName } else { Write-Warning "rc.exe not found - install the Windows SDK (see README)." }
 }
 
+# Release builds sign update files; use the local key if there is one.
+$key = Join-Path $env:USERPROFILE ".tauri\tunelet.key"
+if ($Command -eq "build" -and -not $env:TAURI_SIGNING_PRIVATE_KEY -and (Test-Path $key)) {
+    $env:TAURI_SIGNING_PRIVATE_KEY = Get-Content $key -Raw
+    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+}
+
 if (-not (Test-Path node_modules)) { npm install }
 npm run tauri $Command

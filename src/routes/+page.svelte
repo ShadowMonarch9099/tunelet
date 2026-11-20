@@ -23,6 +23,29 @@
     image: string | null;
   };
 
+  type Action = "toggle" | "search" | "playPause" | "next" | "previous";
+  type Settings = { hotkeys: Record<Action, string>; opacity: number };
+  type HotkeyError = { action: Action; combo: string; reason: "taken" | "invalid" | "duplicate" };
+  type SettingsView = { settings: Settings; autostart: boolean; version: string; hotkeyErrors: HotkeyError[] };
+  type UpdateState =
+    | { state: "idle" | "checking" | "none" | "installing" }
+    | { state: "available"; version: string }
+    | { state: "error"; msg: string };
+
+  const ACTIONS: Action[] = ["toggle", "search", "playPause", "next", "previous"];
+  const LABELS: Record<Action, string> = {
+    toggle: "Show / hide",
+    search: "Search",
+    playPause: "Play / pause",
+    next: "Next song",
+    previous: "Previous song",
+  };
+  const HOTKEY_PROBLEM = {
+    taken: "Used by another app. Pick another.",
+    invalid: "That key isn't supported.",
+    duplicate: "Already used for another action.",
+  };
+
   const IDLE: [string, string] = ["#3a2a5c", "#12324a"];
   const WIDTH = 320;
   const PILL_H = 64;
@@ -55,18 +78,135 @@
   let searchSeq = 0;
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
+  // ---- settings ------------------------------------------------------------
+  let view = $state<"main" | "settings">("main");
+  let sv = $state<SettingsView | null>(null);
+  let recording = $state<Action | null>(null);
+  let recordHint = $state("");
+  let update = $state<UpdateState>({ state: "idle" });
+  let opacity = $derived(sv?.settings.opacity ?? 1);
+
   const win = getCurrentWindow();
 
   onMount(() => {
-    const offNow = listen<NowPlaying>("now-playing", (e) => (np = e.payload));
-    const offSearch = listen("open-search", () => expand());
+    const offs = [
+      listen<NowPlaying>("now-playing", (e) => (np = e.payload)),
+      listen("open-search", () => {
+        view = "main";
+        expand();
+      }),
+      listen("open-settings", () => openSettings()),
+    ];
     invoke("media", { action: "refresh" });
     loadAuth();
-    return () => {
-      offNow.then((f) => f());
-      offSearch.then((f) => f());
-    };
+    loadSettings();
+    checkUpdate(true);
+    return () => offs.forEach((o) => o.then((f) => f()));
   });
+
+  async function loadSettings() {
+    sv = await invoke<SettingsView>("get_settings");
+  }
+
+  async function saveSettings() {
+    if (!sv) return;
+    sv = await invoke<SettingsView>("save_settings", { settings: $state.snapshot(sv.settings) });
+  }
+
+  function hk(a: Action) {
+    return pretty(sv?.settings.hotkeys[a] ?? "");
+  }
+
+  function pretty(combo: string) {
+    if (!combo) return "None";
+    const names: Record<string, string> = {
+      ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Space: "Space",
+      Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
+      Backslash: "\\", Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/",
+    };
+    return combo
+      .split("+")
+      .map((p) => names[p] ?? p.replace(/^Key/, "").replace(/^Digit/, "").replace(/^Numpad/, "Num "))
+      .join(" + ");
+  }
+
+  async function openSettings() {
+    view = "settings";
+    await loadSettings();
+    await expand();
+  }
+
+  async function startRecording(a: Action) {
+    recording = a;
+    recordHint = "";
+    await invoke("suspend_hotkeys", { suspend: true });
+  }
+
+  async function stopRecording(newCombo?: string) {
+    const a = recording;
+    recording = null;
+    recordHint = "";
+    if (a && sv && newCombo !== undefined) {
+      sv.settings.hotkeys[a] = newCombo;
+      await saveSettings(); // re-registers all hotkeys
+    } else {
+      await invoke("suspend_hotkeys", { suspend: false });
+    }
+  }
+
+  function onRecordKey(e: KeyboardEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) return;
+    if (e.key === "Escape") return void stopRecording();
+    if ((e.key === "Backspace" || e.key === "Delete") && !e.ctrlKey && !e.altKey) return void stopRecording("");
+    const mods: string[] = [];
+    if (e.ctrlKey) mods.push("Ctrl");
+    if (e.altKey) mods.push("Alt");
+    if (e.shiftKey) mods.push("Shift");
+    if (e.metaKey) mods.push("Super");
+    if (mods.length === 0 || (mods.length === 1 && mods[0] === "Shift")) {
+      recordHint = "Include Ctrl, Alt or Win so it doesn't clash with typing.";
+      return;
+    }
+    stopRecording([...mods, e.code].join("+"));
+  }
+
+  async function resetHotkeys() {
+    if (!sv) return;
+    const d = await invoke<Settings>("default_settings");
+    sv.settings.hotkeys = d.hotkeys;
+    await saveSettings();
+  }
+
+  async function toggleAutostart(enabled: boolean) {
+    if (!sv) return;
+    try {
+      sv.autostart = await invoke<boolean>("set_autostart", { enabled });
+    } catch (e) {
+      error = String(e);
+      await loadSettings();
+    }
+  }
+
+  async function checkUpdate(silent = false) {
+    if (!silent) update = { state: "checking" };
+    try {
+      const v = await invoke<string | null>("check_update");
+      update = v ? { state: "available", version: v } : { state: silent ? "idle" : "none" };
+    } catch (e) {
+      update = silent ? { state: "idle" } : { state: "error", msg: "Couldn't check for updates." };
+    }
+  }
+
+  async function installUpdate() {
+    update = { state: "installing" };
+    try {
+      await invoke("install_update"); // restarts the app when done
+    } catch (e) {
+      update = { state: "error", msg: String(e) };
+    }
+  }
 
   async function loadAuth() {
     auth = await invoke<AuthStatus>("spotify_status");
@@ -80,7 +220,7 @@
     }
     await invoke("set_interactive", { interactive: true });
     await tick();
-    if (auth?.loggedIn) {
+    if (auth?.loggedIn && view === "main") {
       searchInput?.focus();
       searchInput?.select();
     }
@@ -88,7 +228,9 @@
 
   async function collapse() {
     if (!expanded) return;
+    if (recording) await stopRecording();
     expanded = false;
+    view = "main";
     error = "";
     await tick();
     await win.setSize(new LogicalSize(WIDTH, PILL_H));
@@ -221,6 +363,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
+    if (recording) return onRecordKey(e);
     if (e.key === "Escape") {
       if (expanded) collapse();
       else hide();
@@ -230,7 +373,8 @@
   function onWindowBlur() {
     // Clicking into another app closes search, unless we're mid-login
     // (the browser takes focus during login).
-    if (expanded && auth?.loggedIn && !loggingIn) collapse();
+    if (recording) stopRecording();
+    if (expanded && auth?.loggedIn && !loggingIn && view === "main") collapse();
   }
 
   const kindLabel = { track: "Song", album: "Album", playlist: "Playlist" };
@@ -238,7 +382,7 @@
 
 <svelte:window onkeydown={onKey} onblur={onWindowBlur} />
 
-<div class="shell" style="--c1: {c1}; --c2: {c2}">
+<div class="shell" style="--c1: {c1}; --c2: {c2}; opacity: {opacity}">
   <main class="pill surface" data-tauri-drag-region>
     <div class="art" data-tauri-drag-region>
       {#if art}
@@ -254,35 +398,122 @@
     </div>
 
     <div class="controls">
-      <button aria-label="Previous" title="Previous (Ctrl+Alt+←)" onclick={() => media("previous")}>
+      <button aria-label="Previous" title="Previous ({hk('previous')})" onclick={() => media("previous")}>
         <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM9.5 12 18 6v12z" /></svg>
       </button>
-      <button class="play" aria-label={playing ? "Pause" : "Play"} title="Play / Pause (Ctrl+Alt+P)" onclick={() => media("toggle")}>
+      <button class="play" aria-label={playing ? "Pause" : "Play"} title="Play / Pause ({hk('playPause')})" onclick={() => media("toggle")}>
         {#if playing}
           <svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z" /></svg>
         {:else}
           <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
         {/if}
       </button>
-      <button aria-label="Next" title="Next (Ctrl+Alt+→)" onclick={() => media("next")}>
+      <button aria-label="Next" title="Next ({hk('next')})" onclick={() => media("next")}>
         <svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" /></svg>
       </button>
       <button
         class:active={expanded}
         aria-label="Search"
-        title="Search (Ctrl+Alt+F)"
-        onclick={() => (expanded ? collapse() : expand())}
+        title="Search ({hk('search')})"
+        onclick={() => {
+          if (expanded) collapse();
+          else {
+            view = "main";
+            expand();
+          }
+        }}
       >
         <svg viewBox="0 0 24 24"><path d="M10 4a6 6 0 0 1 4.8 9.6l4.8 4.8-1.4 1.4-4.8-4.8A6 6 0 1 1 10 4zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" /></svg>
       </button>
     </div>
 
-    <button class="close" aria-label="Hide" title="Hide (Ctrl+Alt+S)" onclick={hide}>×</button>
+    <button class="close" aria-label="Hide" title="Hide ({hk('toggle')})" onclick={hide}>×</button>
   </main>
 
   {#if expanded}
     <section class="panel surface">
-      {#if !auth}
+      {#if view === "settings" && sv}
+        <div class="settings">
+          <h3>Hotkeys</h3>
+          {#each ACTIONS as a (a)}
+            {@const problem = sv.hotkeyErrors.find((x) => x.action === a)}
+            <div class="row">
+              <span>{LABELS[a]}</span>
+              <button
+                class="key"
+                class:recording={recording === a}
+                class:bad={!!problem}
+                onclick={() => (recording === a ? stopRecording() : startRecording(a))}
+              >
+                {recording === a ? "Press keys…" : pretty(sv.settings.hotkeys[a])}
+              </button>
+            </div>
+            {#if problem && recording !== a}<div class="row-note error">{HOTKEY_PROBLEM[problem.reason]}</div>{/if}
+            {#if recording === a && recordHint}<div class="row-note">{recordHint}</div>{/if}
+          {/each}
+          <div class="row-note">
+            Click a shortcut, then press the new keys. Backspace clears it, Esc cancels.
+            <button class="link small" onclick={resetHotkeys}>Reset to defaults</button>
+          </div>
+
+          <h3>Appearance</h3>
+          <div class="row">
+            <span>Opacity</span>
+            <span class="slider">
+              <input
+                type="range"
+                min="40"
+                max="100"
+                step="5"
+                value={Math.round(opacity * 100)}
+                oninput={(e) => sv && (sv.settings.opacity = +e.currentTarget.value / 100)}
+                onchange={saveSettings}
+              />
+              <span class="pct">{Math.round(opacity * 100)}%</span>
+            </span>
+          </div>
+
+          <h3>General</h3>
+          <label class="row">
+            <span>Start with Windows</span>
+            <input
+              type="checkbox"
+              class="switch"
+              checked={sv.autostart}
+              onchange={(e) => toggleAutostart(e.currentTarget.checked)}
+            />
+          </label>
+          <div class="row">
+            <span>Spotify</span>
+            {#if auth?.loggedIn}
+              <button class="link small" onclick={logout}>Log out</button>
+            {:else}
+              <span class="muted small-text">Not connected</span>
+            {/if}
+          </div>
+
+          <h3>About</h3>
+          <div class="row">
+            <span>Tunelet v{sv.version}</span>
+            {#if update.state === "available"}
+              <button class="chip accent" onclick={installUpdate}>Update to v{update.version}</button>
+            {:else if update.state === "installing"}
+              <span class="muted small-text">Installing…</span>
+            {:else if update.state === "checking"}
+              <span class="muted small-text">Checking…</span>
+            {:else if update.state === "none"}
+              <span class="muted small-text">Up to date</span>
+            {:else}
+              <button class="chip" onclick={() => checkUpdate()}>Check for updates</button>
+            {/if}
+          </div>
+          {#if update.state === "error"}<div class="row-note error">{update.msg}</div>{/if}
+          {#if error}<div class="row-note error">{error}</div>{/if}
+          <button class="link small gh" onclick={() => openUrl("https://github.com/ShadowMonarch9099/tunelet")}>
+            Tunelet on GitHub
+          </button>
+        </div>
+      {:else if !auth}
         <div class="center muted">Loading…</div>
       {:else if !auth.loggedIn}
         <div class="setup">
@@ -374,12 +605,32 @@
             </div>
           {/each}
         </div>
-
-        <footer>
-          <span class="muted">Connected to Spotify</span>
-          <button class="link small" onclick={logout}>Log out</button>
-        </footer>
       {/if}
+
+      <footer>
+        <span class="muted">
+          {#if view === "settings"}Settings{:else if auth?.loggedIn}Connected to Spotify{:else}Spotify not connected{/if}
+        </span>
+        <button
+          class="chip footer-btn"
+          onclick={async () => {
+            if (recording) await stopRecording();
+            if (view === "settings") {
+              view = "main";
+              await tick();
+              searchInput?.focus();
+            } else {
+              await openSettings();
+            }
+          }}
+        >
+          {#if view === "settings"}
+            ← Back
+          {:else}
+            Settings{#if update.state === "available"}<span class="dot"></span>{/if}
+          {/if}
+        </button>
+      </footer>
 
       {#if toast}<div class="toast">{toast}</div>{/if}
     </section>
@@ -666,6 +917,85 @@
   }
   .primary:hover { background: #fff; opacity: 0.9; }
   .primary:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---- settings ---- */
+  .settings { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 14px 10px; font-size: 12.5px; }
+  .settings::-webkit-scrollbar { width: 6px; }
+  .settings::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+  .settings h3 {
+    margin: 12px 0 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 32px;
+  }
+  .row-note { font-size: 11px; opacity: 0.75; margin: -2px 0 4px; line-height: 1.4; }
+  .row-note.error { opacity: 1; margin-top: 0; }
+  .key {
+    width: auto;
+    min-width: 96px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 11px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .key.recording { border-color: #fff; background: rgba(255, 255, 255, 0.18); animation: pulse 1s ease infinite; }
+  .key.bad { border-color: #ff9a9a; }
+  @keyframes pulse { 50% { border-color: rgba(255, 255, 255, 0.4); } }
+  .slider { display: flex; align-items: center; gap: 8px; }
+  .slider input { width: 120px; accent-color: #fff; }
+  .pct { width: 34px; text-align: right; font-size: 11px; opacity: 0.8; }
+  .small-text { font-size: 11px; }
+  .gh { margin-top: 10px; }
+  .accent { background: #fff; color: #111; font-weight: 600; }
+  .accent:hover { background: #fff; opacity: 0.9; }
+
+  .switch {
+    appearance: none;
+    width: 34px;
+    height: 20px;
+    margin: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    position: relative;
+    cursor: pointer;
+    transition: background 150ms;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 150ms;
+  }
+  .switch:checked { background: #1ed760; }
+  .switch:checked::after { transform: translateX(14px); }
+
+  .footer-btn { position: relative; height: 22px; }
+  .dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1ed760;
+  }
 
   .toast {
     position: absolute;

@@ -3,19 +3,18 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, WebviewWindow,
 };
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::ShortcutState;
 
 mod colors;
 mod media;
+mod settings;
 mod spotify;
 
 use media::{Cmd, Media};
+use settings::{Action, SettingsState};
 
 const MAIN: &str = "main";
 
-fn hotkey(code: Code) -> Shortcut {
-    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), code)
-}
 
 fn send_media(app: &AppHandle, cmd: Cmd) {
     if let Some(m) = app.try_state::<Media>() {
@@ -138,15 +137,24 @@ fn media(app: AppHandle, action: String) {
     send_media(&app, cmd);
 }
 
+
+fn open_panel(app: &AppHandle, event: &str) {
+    show_widget(app);
+    let _ = app.emit(event, ());
+}
+
+fn run_action(app: &AppHandle, action: Action) {
+    match action {
+        Action::Toggle => toggle_widget(app),
+        Action::Search => open_panel(app, "open-search"),
+        Action::PlayPause => send_media(app, Cmd::TogglePlay),
+        Action::Next => send_media(app, Cmd::Next),
+        Action::Previous => send_media(app, Cmd::Previous),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let toggle_shortcut = hotkey(Code::KeyS);
-    let play_shortcut = hotkey(Code::KeyP);
-    let next_shortcut = hotkey(Code::ArrowRight);
-    let prev_shortcut = hotkey(Code::ArrowLeft);
-    let search_shortcut = hotkey(Code::KeyF);
-    let shortcuts = [toggle_shortcut, play_shortcut, next_shortcut, prev_shortcut, search_shortcut];
-
     tauri::Builder::default()
         // A second launch just shows the running widget instead of opening another.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -158,46 +166,38 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(move |app, shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
-                    if shortcut == &toggle_shortcut {
-                        toggle_widget(app);
-                    } else if shortcut == &play_shortcut {
-                        send_media(app, Cmd::TogglePlay);
-                    } else if shortcut == &next_shortcut {
-                        send_media(app, Cmd::Next);
-                    } else if shortcut == &prev_shortcut {
-                        send_media(app, Cmd::Previous);
-                    } else if shortcut == &search_shortcut {
-                        show_widget(app);
-                        let _ = app.emit("open-search", ());
+                    let action = app.try_state::<SettingsState>().and_then(|s| s.action_for(shortcut));
+                    if let Some(action) = action {
+                        run_action(app, action);
                     }
                 })
                 .build(),
         )
-        .setup(move |app| {
+        .setup(|app| {
             app.manage(media::start(app.handle().clone()));
             app.manage(spotify::Spotify::new());
-
-            for s in shortcuts {
-                // Another app may already own a combo; keep going with the rest.
-                if let Err(e) = app.global_shortcut().register(s) {
-                    eprintln!("could not register hotkey {s:?}: {e}");
-                }
-            }
+            settings::init(app.handle());
 
             if let Some(w) = main_window(app.handle()) {
                 native::set_interactive(&w, false);
             }
 
-            let toggle = MenuItem::with_id(app, "toggle", "Show / Hide   (Ctrl+Alt+S)", true, None::<&str>)?;
-            let search = MenuItem::with_id(app, "search", "Search   (Ctrl+Alt+F)", true, None::<&str>)?;
+            let toggle = MenuItem::with_id(app, "toggle", "Show / Hide", true, None::<&str>)?;
+            let search = MenuItem::with_id(app, "search", "Search", true, None::<&str>)?;
+            let prefs = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Tunelet", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle, &search, &quit])?;
+            let menu = Menu::with_items(app, &[&toggle, &search, &prefs, &quit])?;
 
             TrayIconBuilder::with_id("tray")
                 .icon(app.default_window_icon().cloned().expect("app icon missing"))
@@ -206,10 +206,8 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "toggle" => toggle_widget(app),
-                    "search" => {
-                        show_widget(app);
-                        let _ = app.emit("open-search", ());
-                    }
+                    "search" => open_panel(app, "open-search"),
+                    "settings" => open_panel(app, "open-settings"),
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -237,6 +235,13 @@ pub fn run() {
             spotify::spotify_search,
             spotify::spotify_play,
             spotify::spotify_queue,
+            settings::get_settings,
+            settings::save_settings,
+            settings::default_settings,
+            settings::suspend_hotkeys,
+            settings::set_autostart,
+            settings::check_update,
+            settings::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tunelet");
