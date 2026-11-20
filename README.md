@@ -2,17 +2,18 @@
 
 # Tunelet
 
-A tiny, always-on-top Spotify mini-player for Windows. It floats over whatever you're working in, never steals focus, and hides or appears with a keyboard shortcut — so you can play, skip and search songs without switching to the Spotify app.
+A tiny, always-on-top Spotify mini-player for Windows: a round bubble with the album art that floats over whatever you're working in. Click it for a menu that fans out around it, right-click to play/pause, and search, like and skip songs without switching to the Spotify app.
 
 ## Features
 
-- **Floating pill** — album art, song, artist, play / pause / skip, always on top
-- **Album-adaptive look** — the widget's colors shift to match the current cover
+- **Floating bubble** — album art that spins like a vinyl while playing, with a progress ring; drag it anywhere
+- **Radial menu** — click the bubble and the options spring out around it: play/skip, like, search, playlists, now playing, settings
+- **Album-adaptive look** — the glow and every card shift to the current cover's colors
 - **Doesn't get in your way** — clicking it keeps focus in your current app; hidden from the taskbar and Alt+Tab
-- **Search anything** — expand the pill to search Spotify and play or queue songs, albums and playlists
+- **Search anything** — play or queue songs, albums and playlists from a card that opens beside the bubble
 - **Your playlists** — Liked Songs and all your playlists, one keypress away
 - **Like songs** — heart button or `Ctrl+Alt+L` from any app
-- **Seek, volume, devices** — drag the progress line, set Spotify's volume, move playback to your phone or speakers
+- **Now playing** — seek, Spotify volume, and move playback to your phone or speakers
 - **Global hotkeys** — work from any app, and you can change them
 - **Settings** — hotkeys, opacity, start with Windows
 - **Updates itself** — new versions install from inside the app
@@ -39,6 +40,15 @@ Play/pause/skip and now-playing work with no setup. Searching and picking songs 
 
 No client secret is needed — Tunelet uses the PKCE login flow, and tokens are stored in Windows Credential Manager.
 
+## Mouse
+
+| | |
+|---|---|
+| Click the bubble | Open / close the menu |
+| Right-click | Play / pause |
+| Drag | Move it (it remembers where) |
+| Hover | Shows play/pause and the song name |
+
 ## Hotkeys
 
 Defaults — change any of them in Settings.
@@ -48,11 +58,11 @@ Defaults — change any of them in Settings.
 | `Ctrl+Alt+S` | Show / hide the widget |
 | `Ctrl+Alt+F` | Show and jump to search |
 | `Ctrl+Alt+P` | Play / pause |
-| `Ctrl+Alt+←` / `→` | Previous / next |
+| `Ctrl+Alt+←` / `→` | Previous / next (hold to keep skipping) |
 | `Ctrl+Alt+L` | Like / unlike the current song |
-| `Esc` | Close search / hide the widget |
+| `Esc` | Close the menu or card / hide the widget |
 | `↑` `↓` `Enter` | In search: choose and play (`Shift+Enter` adds a song to the queue) |
-| `Tab` | In the panel: switch between Search and Your playlists |
+| `Tab` | In search: switch between Search and Your playlists |
 
 ## Build from source
 
@@ -77,6 +87,7 @@ Release builds sign update files with the key in `%USERPROFILE%\.tauri\tunelet.k
 - [x] Settings: custom hotkeys, opacity, start with Windows
 - [x] x64 + ARM64 installers, in-app updates
 - [x] Like button, your playlists, seek, volume, device switch
+- [x] Round bubble with radial menu and side cards
 
 ## Tech
 
