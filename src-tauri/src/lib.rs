@@ -1,12 +1,13 @@
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, WebviewWindow,
+    AppHandle, Emitter, Manager, WebviewWindow,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 mod colors;
 mod media;
+mod spotify;
 
 use media::{Cmd, Media};
 
@@ -30,21 +31,39 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
 /// in, and stay out of the taskbar and Alt+Tab.
 #[cfg(windows)]
 mod native {
+    use std::sync::atomic::{AtomicIsize, Ordering};
     use tauri::WebviewWindow;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        GetWindowLongPtrW, SetWindowLongPtrW, ShowWindow, GWL_EXSTYLE, SW_SHOWNOACTIVATE,
-        WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        GetForegroundWindow, GetWindowLongPtrW, SetForegroundWindow, SetWindowLongPtrW, ShowWindow,
+        GWL_EXSTYLE, SW_SHOWNOACTIVATE, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
+
+    /// The window that had focus before Tunelet took it, so we can hand it back.
+    static PREVIOUS: AtomicIsize = AtomicIsize::new(0);
 
     fn hwnd(w: &WebviewWindow) -> Option<*mut core::ffi::c_void> {
         w.hwnd().ok().map(|h| h.0 as _)
     }
 
-    /// `interactive = false`: clicks never activate the window (default).
+    /// `interactive = false`: clicks never activate the window (default), and
+    /// focus goes back to the app you were in.
     /// `interactive = true`: window can take keyboard focus (e.g. typing in search).
     pub fn set_interactive(w: &WebviewWindow, interactive: bool) {
         let Some(h) = hwnd(w) else { return };
         unsafe {
+            let fg = GetForegroundWindow();
+            if interactive {
+                if !fg.is_null() && fg != h {
+                    PREVIOUS.store(fg as isize, Ordering::Relaxed);
+                }
+            } else {
+                let prev = PREVIOUS.swap(0, Ordering::Relaxed);
+                // Only hand focus back if we still have it (the user may
+                // already have clicked somewhere else).
+                if prev != 0 && fg == h {
+                    SetForegroundWindow(prev as _);
+                }
+            }
             let mut style = GetWindowLongPtrW(h, GWL_EXSTYLE);
             style |= WS_EX_TOOLWINDOW as isize;
             style &= !(WS_EX_APPWINDOW as isize);
@@ -125,7 +144,8 @@ pub fn run() {
     let play_shortcut = hotkey(Code::KeyP);
     let next_shortcut = hotkey(Code::ArrowRight);
     let prev_shortcut = hotkey(Code::ArrowLeft);
-    let shortcuts = [toggle_shortcut, play_shortcut, next_shortcut, prev_shortcut];
+    let search_shortcut = hotkey(Code::KeyF);
+    let shortcuts = [toggle_shortcut, play_shortcut, next_shortcut, prev_shortcut, search_shortcut];
 
     tauri::Builder::default()
         // A second launch just shows the running widget instead of opening another.
@@ -152,12 +172,16 @@ pub fn run() {
                         send_media(app, Cmd::Next);
                     } else if shortcut == &prev_shortcut {
                         send_media(app, Cmd::Previous);
+                    } else if shortcut == &search_shortcut {
+                        show_widget(app);
+                        let _ = app.emit("open-search", ());
                     }
                 })
                 .build(),
         )
         .setup(move |app| {
             app.manage(media::start(app.handle().clone()));
+            app.manage(spotify::Spotify::new());
 
             for s in shortcuts {
                 // Another app may already own a combo; keep going with the rest.
@@ -171,8 +195,9 @@ pub fn run() {
             }
 
             let toggle = MenuItem::with_id(app, "toggle", "Show / Hide   (Ctrl+Alt+S)", true, None::<&str>)?;
+            let search = MenuItem::with_id(app, "search", "Search   (Ctrl+Alt+F)", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Tunelet", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&toggle, &quit])?;
+            let menu = Menu::with_items(app, &[&toggle, &search, &quit])?;
 
             TrayIconBuilder::with_id("tray")
                 .icon(app.default_window_icon().cloned().expect("app icon missing"))
@@ -181,6 +206,10 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "toggle" => toggle_widget(app),
+                    "search" => {
+                        show_widget(app);
+                        let _ = app.emit("open-search", ());
+                    }
                     "quit" => app.exit(0),
                     _ => {}
                 })
@@ -198,7 +227,17 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![hide_widget, set_interactive, media])
+        .invoke_handler(tauri::generate_handler![
+            hide_widget,
+            set_interactive,
+            media,
+            spotify::spotify_status,
+            spotify::spotify_login,
+            spotify::spotify_logout,
+            spotify::spotify_search,
+            spotify::spotify_play,
+            spotify::spotify_queue,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Tunelet");
 }

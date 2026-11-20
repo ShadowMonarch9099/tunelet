@@ -27,6 +27,12 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 base64 = "0.22"
+# default TLS = Windows' built-in SChannel (no extra build tools needed on ARM64)
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["net", "io-util", "time"] }
+keyring = { version = "3", features = ["windows-native"] }
+sha2 = "0.10"
+rand = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
