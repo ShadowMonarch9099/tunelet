@@ -45,10 +45,11 @@ No client secret is needed — Tunelet uses the PKCE login flow, and tokens are 
 Prerequisites: [Node.js 20+](https://nodejs.org), [Rust](https://rustup.rs), and the [Tauri Windows prerequisites](https://tauri.app/start/prerequisites/) (Microsoft C++ Build Tools + WebView2).
 
 ```powershell
-npm install
-npm run tauri dev     # run in development
-npm run tauri build   # build installers into src-tauri/target/release/bundle
+.\scripts\dev.ps1           # run in development (installs npm deps on first run)
+.\scripts\dev.ps1 build     # build installers into src-tauri/target/release/bundle
 ```
+
+The script finds Cargo and the Windows SDK's `rc.exe` even when they aren't on `PATH`. Works on x64 and ARM64 (Snapdragon) PCs. If PowerShell blocks the script, run it with `powershell -ExecutionPolicy Bypass -File .\scripts\dev.ps1`.
 
 ## Roadmap
 
