@@ -135,12 +135,12 @@
 
   .bubble {
     position: relative;
-    width: 46px;
-    height: 46px;
+    width: 42px;
+    height: 42px;
     border-radius: 50%;
     transition: transform 200ms cubic-bezier(.3, 1.5, .5, 1), background 200ms;
   }
-  .bubble svg { width: 20px; height: 20px; transition: transform 200ms; }
+  .bubble svg { width: 18px; height: 18px; transition: transform 200ms; }
   .bubble:hover { transform: scale(1.12); }
   .bubble:active { transform: scale(0.92); }
   .bubble.active { box-shadow: 0 0 0 2px #fff, 0 6px 18px rgba(0, 0, 0, 0.4); }
@@ -181,22 +181,22 @@
   .capsule-inner {
     display: flex;
     align-items: center;
-    gap: 2px;
-    height: 46px;
-    padding: 0 6px;
-    border-radius: 23px;
+    gap: 1px;
+    height: 42px;
+    padding: 0 4px;
+    border-radius: 21px;
   }
   .capsule-inner button {
-    width: 34px;
-    height: 34px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: transparent;
     transition: background 150ms, transform 150ms;
   }
-  .capsule-inner button svg { width: 18px; height: 18px; }
+  .capsule-inner button svg { width: 16px; height: 16px; }
   .capsule-inner button:hover { background: rgba(255, 255, 255, 0.16); }
   .capsule-inner button:active { transform: scale(0.9); }
-  .capsule-inner .main { width: 38px; height: 38px; background: rgba(255, 255, 255, 0.95); color: #111; }
+  .capsule-inner .main { width: 34px; height: 34px; background: rgba(255, 255, 255, 0.95); color: #111; }
   .capsule-inner .main:hover { background: #fff; }
-  .capsule-inner .main svg { width: 20px; height: 20px; }
+  .capsule-inner .main svg { width: 18px; height: 18px; }
 </style>

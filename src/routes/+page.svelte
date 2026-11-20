@@ -18,11 +18,17 @@
   type Area = { x: number; y: number; width: number; height: number };
 
   // Sizes in logical pixels.
-  const BOB_HALF = 48; // half of the window in bob mode (84px bob + glow room)
+  const BOB_HALF = 40; // half of the window in bob mode (68px bob + glow room)
+  const BOB_VISUAL_HALF = 34; // half of the bob + ring itself
   const CARD_W = 320;
   const CARD_H = 428;
-  const R_FULL = 100; // radius of the option ring
-  const R_ARC = 112; // radius when fanned out in an arc near a screen edge
+  const R_FULL = 78; // radius of the option ring
+  const R_CAPSULE = 82; // the wider playback capsule sits a touch further out
+  const R_ARC = 90; // radius when fanned out in an arc near a screen edge
+  // Angle gaps between options (degrees). The capsule is wide, so the
+  // options next to it get a bigger gap.
+  const RING_STEPS = [68, 56, 56, 56, 56]; // full ring, from the capsule at the top
+  const ARC_STEPS = [54, 42, 42, 42, 42]; // arc near an edge
   const STORE_KEY = "tunelet.bob-center";
 
   const win = getCurrentWindow();
@@ -66,25 +72,23 @@
 
   function computeSpots(a: Area): RadialSpot[] {
     const ids: RadialId[] = ["playback", "like", "search", "playlists", "player", "settings"];
-    const need = R_FULL + 60;
+    const need = R_CAPSULE + 70;
     const roomy =
       center.x - a.x >= need &&
       a.x + a.width - center.x >= need &&
       center.y - a.y >= need &&
       a.y + a.height - center.y >= need;
-    let R = R_FULL;
-    let angles: number[];
-    if (roomy) {
-      // Full ring, clockwise from the top.
-      angles = ids.map((_, i) => -90 + i * (360 / ids.length));
-    } else {
-      // Near an edge: fan out in an arc that faces the middle of the screen.
-      R = R_ARC;
-      const toward = (Math.atan2(a.y + a.height / 2 - center.y, a.x + a.width / 2 - center.x) * 180) / Math.PI;
-      const step = 44;
-      angles = ids.map((_, i) => toward - (step * (ids.length - 1)) / 2 + i * step);
-    }
+
+    const steps = roomy ? RING_STEPS : ARC_STEPS;
+    const span = steps.reduce((s, v) => s + v, 0);
+    // Full ring: capsule at the top, others clockwise. Near an edge: an arc
+    // that faces the middle of the screen.
+    const toward = (Math.atan2(a.y + a.height / 2 - center.y, a.x + a.width / 2 - center.x) * 180) / Math.PI;
+    let angle = roomy ? -90 : toward - span / 2;
+    const angles = [angle, ...steps.map((s) => (angle += s))];
+
     return ids.map((id, i) => {
+      const R = id === "playback" ? (roomy ? R_CAPSULE : R_ARC + 4) : roomy ? R_FULL : R_ARC;
       const t = (angles[i] * Math.PI) / 180;
       return { id, dx: Math.round(R * Math.cos(t)), dy: Math.round(R * Math.sin(t)) };
     });
@@ -105,8 +109,8 @@
     const a = await screenArea();
     spots = computeSpots(a);
     const rects = spots.map((s) => {
-      const hw = s.id === "playback" ? 62 : 24;
-      return { x: center.x + s.dx - hw, y: center.y + s.dy - 24, w: hw * 2, h: 48 };
+      const hw = s.id === "playback" ? 56 : 22;
+      return { x: center.x + s.dx - hw, y: center.y + s.dy - 22, w: hw * 2, h: 44 };
     });
     // Extra room on the sides for hover labels.
     await applyBounds(union([bobRect(), ...rects], { x: 84, y: 34 }));
@@ -116,8 +120,8 @@
     const a = await screenArea();
     const right = center.x < a.x + a.width / 2;
     const down = center.y < a.y + a.height / 2;
-    let x = right ? center.x + 50 : center.x - 50 - CARD_W;
-    let y = down ? center.y - 40 : center.y + 40 - CARD_H;
+    let x = right ? center.x + BOB_VISUAL_HALF + 8 : center.x - BOB_VISUAL_HALF - 8 - CARD_W;
+    let y = down ? center.y - BOB_VISUAL_HALF : center.y + BOB_VISUAL_HALF - CARD_H;
     x = Math.min(Math.max(x, a.x + 8), a.x + a.width - CARD_W - 8);
     y = Math.min(Math.max(y, a.y + 8), a.y + a.height - CARD_H - 8);
     const cardRect = { x, y, w: CARD_W, h: CARD_H };
@@ -331,7 +335,7 @@
   </div>
 
   {#if mode === "radial" && app.toast}
-    <div class="radial-toast" style="left: {bobAt.x}px; top: {bobAt.y + 62}px">{app.toast}</div>
+    <div class="radial-toast" style="left: {bobAt.x}px; top: {bobAt.y + R_FULL + 30}px">{app.toast}</div>
   {/if}
 </div>
 
@@ -342,7 +346,7 @@
     transition: --c1 700ms ease, --c2 700ms ease;
   }
   .anchor { position: absolute; width: 0; height: 0; }
-  .bob-pos { position: absolute; left: -42px; top: -42px; }
+  .bob-pos { position: absolute; left: -34px; top: -34px; }
   .card-pos { position: absolute; }
 
   .radial-toast {

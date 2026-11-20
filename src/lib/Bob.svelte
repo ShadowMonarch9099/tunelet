@@ -12,8 +12,8 @@
     onmenu,
   }: { open?: boolean; draggable?: boolean; onmenu: () => void } = $props();
 
-  const SIZE = 64;
-  const RING_R = 37;
+  const SIZE = 52;
+  const RING_R = 30;
   const RING_C = 2 * Math.PI * RING_R;
 
   let el = $state<HTMLDivElement | null>(null);
@@ -76,12 +76,12 @@
     ? `${app.title} — ${app.artist}\nClick: menu · Right-click: ${app.playing ? "pause" : "play"}`
     : "Tunelet — click for menu"}
 >
-  <svg class="ring" viewBox="0 0 84 84" aria-hidden="true">
-    <circle cx="42" cy="42" r={RING_R} class="ring-bg" />
+  <svg class="ring" viewBox="0 0 68 68" aria-hidden="true">
+    <circle cx="34" cy="34" r={RING_R} class="ring-bg" />
     {#if app.durationMs > 0}
       <circle
-        cx="42"
-        cy="42"
+        cx="34"
+        cy="34"
         r={RING_R}
         class="ring-fg"
         stroke-dasharray={RING_C}
@@ -133,8 +133,8 @@
 <style>
   .bob-wrap {
     position: relative;
-    width: 84px;
-    height: 84px;
+    width: 68px;
+    height: 68px;
     display: grid;
     place-items: center;
     transition: --c1 700ms ease, --c2 700ms ease;
@@ -146,7 +146,7 @@
     transform: rotate(-90deg);
     pointer-events: none;
   }
-  .ring circle { fill: none; stroke-width: 3; }
+  .ring circle { fill: none; stroke-width: 2.5; }
   .ring-bg { stroke: rgba(255, 255, 255, 0.14); }
   .ring-fg {
     stroke: rgba(255, 255, 255, 0.9);
@@ -162,7 +162,7 @@
     background: radial-gradient(circle at 30% 30%, var(--c1), var(--c2));
     box-shadow:
       0 0 0 1.5px rgba(255, 255, 255, 0.18),
-      0 0 18px 2px color-mix(in srgb, var(--c1) 70%, transparent),
+      0 0 14px 2px color-mix(in srgb, var(--c1) 70%, transparent),
       0 6px 16px rgba(0, 0, 0, 0.45);
     transition: transform 220ms cubic-bezier(.3, 1.4, .5, 1), box-shadow 300ms ease;
     touch-action: none;
@@ -172,7 +172,7 @@
   .open .bob {
     box-shadow:
       0 0 0 2px rgba(255, 255, 255, 0.35),
-      0 0 26px 6px color-mix(in srgb, var(--c1) 80%, transparent),
+      0 0 20px 5px color-mix(in srgb, var(--c1) 80%, transparent),
       0 6px 16px rgba(0, 0, 0, 0.45);
   }
 
@@ -197,16 +197,16 @@
     display: grid;
     place-items: center;
   }
-  .placeholder svg { width: 26px; height: 26px; fill: rgba(255, 255, 255, 0.85); }
+  .placeholder svg { width: 22px; height: 22px; fill: rgba(255, 255, 255, 0.85); }
 
   /* little spindle hole, vinyl style */
   .hole {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 7px;
-    height: 7px;
-    margin: -3.5px 0 0 -3.5px;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
     border-radius: 50%;
     background: rgba(0, 0, 0, 0.55);
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
@@ -224,8 +224,8 @@
     pointer-events: none;
   }
   .hover svg {
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
     fill: #fff;
     transform: scale(0.7);
     transition: transform 220ms cubic-bezier(.3, 1.5, .5, 1);
@@ -242,7 +242,7 @@
     pointer-events: none;
     animation: burst 900ms ease forwards;
   }
-  .like-burst svg { width: 30px; height: 30px; fill: #1ed760; filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.6)); }
+  .like-burst svg { width: 26px; height: 26px; fill: #1ed760; filter: drop-shadow(0 0 6px rgba(0, 0, 0, 0.6)); }
   .like-burst.unliked svg { fill: #fff; }
   @keyframes burst {
     0% { opacity: 0; transform: scale(0.3); }
