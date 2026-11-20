@@ -4,6 +4,18 @@
   import { icon } from "../icons";
 
   let bar = $state<HTMLDivElement | null>(null);
+  let lastVolume = 50;
+
+  /** Scroll over the volume row to change it in 2% steps (non-passive so the card doesn't scroll). */
+  function wheelVolume(node: HTMLElement) {
+    const onWheel = (e: WheelEvent) => {
+      if (app.volume === null) return;
+      e.preventDefault();
+      app.stepVolume(e.deltaY < 0 ? 2 : -2);
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return { destroy: () => node.removeEventListener("wheel", onWheel) };
+  }
   let dragFrac = $state<number | null>(null);
   let shownFrac = $derived(dragFrac ?? app.progress);
 
@@ -103,18 +115,36 @@
   </div>
 
   {#if app.auth?.loggedIn}
-    <div class="vol">
-      <svg viewBox="0 0 24 24"><path d={icon.volume} /></svg>
+    <div class="vol" use:wheelVolume>
+      <button
+        class="mute"
+        aria-label="Mute"
+        title="Mute / unmute"
+        disabled={app.volume === null}
+        onclick={() => {
+          if (app.volume === null) return;
+          if (app.volume > 0) {
+            lastVolume = app.volume;
+            app.setVolume(0);
+          } else {
+            app.setVolume(lastVolume || 50);
+          }
+        }}
+      >
+        <svg viewBox="0 0 24 24"><path d={app.volume === 0 ? icon.muted : icon.volume} /></svg>
+      </button>
       <input
         type="range"
         min="0"
         max="100"
+        step="1"
+        style="--v: {app.volume ?? 50}%"
         value={app.volume ?? 50}
         disabled={app.volume === null || app.player?.device?.supportsVolume === false}
-        title={app.volume === null ? "Play something to change volume" : `Volume ${app.volume}%`}
+        title={app.volume === null ? "Play something to change volume" : "Drag, scroll or use arrow keys"}
         oninput={(e) => app.setVolume(+e.currentTarget.value)}
       />
-      <span class="pct">{app.volume ?? "–"}</span>
+      <span class="pct">{app.volume ?? "–"}%</span>
     </div>
 
     <div class="section-title">Play on</div>
@@ -209,10 +239,53 @@
   .like.liked svg { animation: pop 350ms ease; }
   @keyframes pop { 50% { transform: scale(1.35); } }
 
-  .vol { display: flex; align-items: center; gap: 8px; font-size: 11px; }
-  .vol svg { width: 16px; height: 16px; fill: currentColor; opacity: 0.75; flex: none; }
-  .vol input { flex: 1; accent-color: #fff; }
-  .pct { width: 24px; text-align: right; opacity: 0.7; font-variant-numeric: tabular-nums; }
+  .vol { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+  .mute {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #fff;
+    cursor: pointer;
+    flex: none;
+    transition: background 150ms;
+  }
+  .mute:hover { background: rgba(255, 255, 255, 0.12); }
+  .mute:disabled { opacity: 0.4; cursor: default; }
+  .mute svg { width: 16px; height: 16px; fill: currentColor; }
+
+  /* Custom slider: filled part follows the value exactly. */
+  .vol input {
+    flex: 1;
+    height: 18px;
+    margin: 0;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+  }
+  .vol input:disabled { opacity: 0.4; cursor: default; }
+  .vol input::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(to right, #fff var(--v), rgba(255, 255, 255, 0.2) var(--v));
+  }
+  .vol input::-webkit-slider-thumb {
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: -4px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    transition: transform 120ms;
+  }
+  .vol input:hover::-webkit-slider-thumb,
+  .vol input:active::-webkit-slider-thumb { transform: scale(1.25); }
+  .pct { width: 34px; text-align: right; opacity: 0.75; font-variant-numeric: tabular-nums; }
 
   .section-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin: 12px 0 4px; }
   .devices { display: flex; flex-direction: column; gap: 2px; }

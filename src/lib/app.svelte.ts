@@ -44,7 +44,14 @@ class App {
   liked = $state<boolean | null>(null);
   likeBusy = $state(false);
   volume = $state<number | null>(null);
-  #volumeTimer: ReturnType<typeof setTimeout> | undefined;
+  // Live volume: while the slider moves, the newest value is sent as soon as
+  // the previous request finishes (so Spotify follows the slider in real time
+  // without piling up requests), and the final value is always sent last.
+  #volPending: number | null = null;
+  #volSending = false;
+  #volLastSent: number | null = null;
+  /** Ignore Spotify's (briefly stale) reported volume until this time. */
+  #volHoldUntil = 0;
   devices = $state<Device[] | null>(null);
 
   // ---- search / playlists ----------------------------------------------------
@@ -116,23 +123,51 @@ class App {
       const p = await invoke<PlayerState>("spotify_player");
       this.player = p;
       this.liked = p.liked;
-      if (p.device?.volume != null && this.#volumeTimer === undefined) this.volume = p.device.volume;
+      if (p.device?.volume != null && !this.#volSending && Date.now() > this.#volHoldUntil) {
+        this.volume = p.device.volume;
+        this.#volLastSent = p.device.volume;
+      }
     } catch (e) {
       if (String(e) === "not_logged_in") this.loadAuth();
     }
   }
 
+  /** Set Spotify's volume (0–100). Safe to call on every slider movement. */
   setVolume(v: number) {
+    v = Math.round(Math.min(100, Math.max(0, v)));
     this.volume = v;
-    clearTimeout(this.#volumeTimer);
-    this.#volumeTimer = setTimeout(async () => {
-      this.#volumeTimer = undefined;
-      try {
-        await invoke("spotify_volume", { percent: v });
-      } catch (e) {
-        this.handleError(e);
+    this.#volHoldUntil = Date.now() + 3000;
+    this.#volPending = v;
+    this.#pumpVolume();
+  }
+
+  /** Nudge the volume up/down (mouse wheel, arrow keys). */
+  stepVolume(delta: number) {
+    if (this.volume === null) return;
+    this.setVolume(this.volume + delta);
+  }
+
+  async #pumpVolume() {
+    if (this.#volSending) return;
+    this.#volSending = true;
+    try {
+      while (this.#volPending !== null) {
+        const v = this.#volPending;
+        this.#volPending = null;
+        if (v === this.#volLastSent) continue;
+        try {
+          await invoke("spotify_volume", { percent: v });
+          this.#volLastSent = v;
+        } catch (e) {
+          this.handleError(e);
+          this.#volPending = null;
+          break;
+        }
       }
-    }, 150);
+    } finally {
+      this.#volSending = false;
+      this.#volHoldUntil = Date.now() + 3000;
+    }
   }
 
   async loadDevices() {
