@@ -90,7 +90,7 @@
 
     <h3>Mouse</h3>
     <div class="row-note plain">
-      Left-click the bubble: play / pause · Right-click: menu · Drag: move it
+      Click the bubble: menu · Right-click: play / pause · Drag: move it
     </div>
 
     <h3>Appearance</h3>

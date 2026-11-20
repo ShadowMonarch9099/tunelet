@@ -1,7 +1,7 @@
 <script lang="ts">
   // The round widget: album art (spins like a vinyl while playing), a glow in
-  // the album's colors, and a progress ring. Left-click plays/pauses,
-  // right-click opens the menu, dragging moves the widget.
+  // the album's colors, and a progress ring. Left-click opens the menu,
+  // right-click plays/pauses, dragging moves the widget.
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { app } from "./app.svelte";
   import { icon } from "./icons";
@@ -52,18 +52,17 @@
     const click = !!down;
     down = null;
     pressed = false;
-    if (click && app.available) {
-      app.media("toggle");
-      el?.animate(
-        [{ transform: "scale(1)" }, { transform: "scale(.88) rotate(-12deg)" }, { transform: "scale(1)" }],
-        { duration: 320, easing: "cubic-bezier(.3,1.4,.5,1)" },
-      );
-    }
+    if (click) onmenu();
   }
 
   function oncontextmenu(e: MouseEvent) {
     e.preventDefault();
-    onmenu();
+    if (!app.available) return;
+    app.media("toggle");
+    el?.animate(
+      [{ transform: "scale(1)" }, { transform: "scale(.88) rotate(-12deg)" }, { transform: "scale(1)" }],
+      { duration: 320, easing: "cubic-bezier(.3,1.4,.5,1)" },
+    );
   }
 
   let ringOffset = $derived(RING_C * (1 - app.progress));
@@ -73,7 +72,9 @@
   class="bob-wrap"
   class:open
   style="--c1: {app.colors[0]}; --c2: {app.colors[1]}"
-  title={app.available ? `${app.title} — ${app.artist}` : "Tunelet — right-click for menu"}
+  title={app.available
+    ? `${app.title} — ${app.artist}\nClick: menu · Right-click: ${app.playing ? "pause" : "play"}`
+    : "Tunelet — click for menu"}
 >
   <svg class="ring" viewBox="0 0 84 84" aria-hidden="true">
     <circle cx="42" cy="42" r={RING_R} class="ring-bg" />
@@ -96,7 +97,7 @@
     style="width: {SIZE}px; height: {SIZE}px"
     role="button"
     tabindex="-1"
-    aria-label={app.playing ? "Pause" : "Play"}
+    aria-label="Open menu"
     {onpointerdown}
     {onpointermove}
     {onpointerup}
