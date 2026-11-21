@@ -495,9 +495,13 @@ class App {
   }
 }
 
+export const IS_MAC = typeof navigator !== "undefined" && navigator.userAgent.includes("Macintosh");
+
 export function prettyCombo(combo: string) {
   if (!combo) return "None";
   const names: Record<string, string> = {
+    // macOS shows modifier keys as symbols.
+    ...(IS_MAC ? { Ctrl: "⌃", Control: "⌃", Alt: "⌥", Option: "⌥", Shift: "⇧", Super: "⌘", Cmd: "⌘", Command: "⌘" } : {}),
     ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Space: "Space",
     Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
     Backslash: "\\", Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/",
@@ -505,7 +509,7 @@ export function prettyCombo(combo: string) {
   return combo
     .split("+")
     .map((p) => names[p] ?? p.replace(/^Key/, "").replace(/^Digit/, "").replace(/^Numpad/, "Num "))
-    .join(" + ");
+    .join(IS_MAC ? " " : " + ");
 }
 
 export function fmtTime(ms: number) {

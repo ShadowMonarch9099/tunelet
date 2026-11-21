@@ -1,9 +1,11 @@
-//! Starts the Spotify app minimized to the tray when Tunelet needs it, so you
-//! never have to open Spotify yourself. Works with both the installer version
-//! (%APPDATA%\Spotify) and the Microsoft Store version.
+//! Starts the Spotify app in the background when Tunelet needs it, so you
+//! never have to open Spotify yourself. Windows: the installer version
+//! (%APPDATA%\Spotify) or the Microsoft Store version, minimized to the tray.
+//! macOS: launched hidden with `open`.
 
+#[cfg(windows)]
+use std::path::PathBuf;
 use std::{
-    path::PathBuf,
     sync::Mutex,
     time::{Duration, Instant},
 };
@@ -57,11 +59,21 @@ pub fn is_running() -> bool {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+pub fn is_running() -> bool {
+    std::process::Command::new("pgrep")
+        .args(["-x", "Spotify"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn is_running() -> bool {
     true
 }
 
+#[cfg(windows)]
 /// Where Spotify.exe can live. The WindowsApps one is the Store version's
 /// "app execution alias", which accepts command-line flags like a normal exe.
 fn candidates() -> Vec<PathBuf> {
@@ -105,7 +117,27 @@ pub fn launch_hidden() -> Result<(), String> {
     Err("Couldn't find the Spotify app. Install it from spotify.com or the Microsoft Store.".into())
 }
 
-#[cfg(not(windows))]
+/// Starts Spotify in the background (`-g`) and hidden (`-j`).
+#[cfg(target_os = "macos")]
+pub fn launch_hidden() -> Result<(), String> {
+    if is_running_or_starting() {
+        return Ok(());
+    }
+    let ok = std::process::Command::new("open")
+        .args(["-g", "-j", "-a", "Spotify"])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+    if !ok {
+        return Err("Couldn't find the Spotify app. Install it from spotify.com.".into());
+    }
+    if let Ok(mut g) = LAST_LAUNCH.lock() {
+        *g = Some(Instant::now());
+    }
+    Ok(())
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn launch_hidden() -> Result<(), String> {
     Ok(())
 }

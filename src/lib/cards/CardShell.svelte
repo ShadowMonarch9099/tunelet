@@ -20,7 +20,7 @@
     onswitch: (c: Card) => void;
     onclose: () => void;
     /** Drag the whole widget by the card's header. */
-    ondrag: () => void;
+    ondrag: (e: PointerEvent) => void;
     children: Snippet;
   } = $props();
 
@@ -45,7 +45,10 @@
     role="presentation"
     onpointerdown={(e) => {
       // The header's empty space and title are a drag handle; its buttons aren't.
-      if (e.button === 0 && e.buttons & 1 && !(e.target as HTMLElement).closest("button")) ondrag();
+      if (e.button === 0 && e.buttons & 1 && !(e.target as HTMLElement).closest("button")) {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        ondrag(e);
+      }
     }}
   >
     <h2>

@@ -1,6 +1,7 @@
-//! Now-playing state and transport controls via Windows' media session API
-//! (the same thing that powers the media card in the volume flyout).
-//! Needs no Spotify login and works with any Spotify account.
+//! Now-playing state and transport controls, straight from the Spotify app.
+//! Windows: the system media session API (what powers the media card in the
+//! volume flyout). macOS: Spotify's AppleScript interface.
+//! Neither needs a Spotify login, and both work with any Spotify account.
 
 use serde::Serialize;
 use std::sync::mpsc;
@@ -61,7 +62,17 @@ pub fn start(app: tauri::AppHandle) -> Media {
     Media(tx)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+pub fn start(app: tauri::AppHandle) -> Media {
+    let (tx, rx) = mpsc::channel();
+    std::thread::Builder::new()
+        .name("media".into())
+        .spawn(move || mac::run(app, rx))
+        .expect("failed to start media thread");
+    Media(tx)
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn start(_app: tauri::AppHandle) -> Media {
     let (tx, _rx) = mpsc::channel();
     Media(tx)
@@ -275,5 +286,164 @@ mod win {
 
     fn sniff_mime(b: &[u8]) -> &'static str {
         if b.starts_with(&[0x89, b'P', b'N', b'G']) { "image/png" } else { "image/jpeg" }
+    }
+}
+
+/// macOS: asks the Spotify app over AppleScript (`osascript`). The first time,
+/// macOS asks whether Tunelet may control Spotify.
+#[cfg(target_os = "macos")]
+mod mac {
+    use super::{Cmd, NowPlaying, Timeline};
+    use base64::Engine;
+    use std::{
+        process::Command,
+        sync::mpsc::{Receiver, RecvTimeoutError},
+        time::{Duration, Instant},
+    };
+    use tauri::{AppHandle, Emitter};
+
+    const POLL: Duration = Duration::from_millis(800);
+    /// How long to wait for a freshly started Spotify before giving up.
+    const WAKE_TIMEOUT: Duration = Duration::from_secs(25);
+
+    /// Fields come back separated by tabs. `is running` never launches Spotify.
+    const READ: &str = r#"if application "Spotify" is running then
+  tell application "Spotify"
+    set st to player state as string
+    if st is "stopped" then return "stopped"
+    set t to current track
+    return st & tab & (name of t) & tab & (artist of t) & tab & (album of t) & tab & ((duration of t) as string) & tab & ((player position) as string) & tab & (artwork url of t)
+  end tell
+end if
+return "off""#;
+
+    fn osascript(script: &str) -> Option<String> {
+        let out = Command::new("osascript").args(["-e", script]).output().ok()?;
+        out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    }
+
+    /// Only talks to Spotify when it's already running (`tell` would launch it).
+    fn tell(command: &str) {
+        osascript(&format!(r#"if application "Spotify" is running then tell application "Spotify" to {command}"#));
+    }
+
+    /// AppleScript numbers use the system's decimal separator ("12,5" in many locales).
+    fn num(s: &str) -> f64 {
+        s.trim().replace(',', ".").parse().unwrap_or(0.0)
+    }
+
+    struct Snap {
+        playing: bool,
+        title: String,
+        artist: String,
+        album: String,
+        duration_ms: u64,
+        position_ms: u64,
+        art_url: String,
+    }
+
+    fn read() -> Option<Snap> {
+        let out = osascript(READ)?;
+        let f: Vec<&str> = out.split('\t').collect();
+        if f.len() < 7 {
+            return None; // "off" or "stopped"
+        }
+        Some(Snap {
+            playing: f[0] == "playing",
+            title: f[1].to_string(),
+            artist: f[2].to_string(),
+            album: f[3].to_string(),
+            duration_ms: num(f[4]) as u64,
+            position_ms: (num(f[5]) * 1000.0) as u64,
+            art_url: f[6].to_string(),
+        })
+    }
+
+    /// Cover image as a data: URL, plus its colors.
+    fn fetch_art(url: &str) -> Option<(String, Option<[String; 2]>)> {
+        if url.is_empty() {
+            return None;
+        }
+        let bytes = tauri::async_runtime::block_on(async {
+            let c = reqwest::Client::builder()
+                .connect_timeout(crate::settings::CONNECT_TIMEOUT)
+                .timeout(Duration::from_secs(15))
+                .build()
+                .ok()?;
+            c.get(url).send().await.ok()?.bytes().await.ok()
+        })?;
+        let mime = if bytes.starts_with(&[0x89, b'P', b'N', b'G']) { "image/png" } else { "image/jpeg" };
+        let data = format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(&bytes));
+        Some((data, crate::colors::extract(&bytes)))
+    }
+
+    pub fn run(app: AppHandle, rx: Receiver<Cmd>) {
+        let mut last = NowPlaying::default();
+        let mut art_url = String::new();
+        let mut art: Option<(String, Option<[String; 2]>)> = None;
+        let mut play_by: Option<Instant> = None;
+
+        loop {
+            let mut force = false;
+            match rx.recv_timeout(POLL) {
+                Ok(Cmd::Refresh) => force = true,
+                Ok(Cmd::PlayWhenReady) => {
+                    play_by = Some(Instant::now() + WAKE_TIMEOUT);
+                    let _ = app.emit("spotify-waking", true);
+                }
+                Ok(Cmd::TogglePlay) => tell("playpause"),
+                Ok(Cmd::Next) => tell("next track"),
+                Ok(Cmd::Previous) => tell("previous track"),
+                Ok(Cmd::Seek(ms)) => tell(&format!("set player position to {}", ms as f64 / 1000.0)),
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => break,
+            }
+
+            let snap = read();
+
+            if let Some(deadline) = play_by {
+                // Spotify was just started: press play once it's ready.
+                let playing = snap.as_ref().is_some_and(|s| s.playing);
+                if !playing && crate::launcher::is_running() {
+                    tell("play");
+                }
+                if playing || Instant::now() > deadline {
+                    play_by = None;
+                    let _ = app.emit("spotify-waking", false);
+                    if !playing {
+                        let _ = app.emit("toast", "Spotify took too long to start. Try again.");
+                    }
+                }
+            }
+
+            let state = match &snap {
+                Some(s) => {
+                    if s.art_url != art_url {
+                        art_url = s.art_url.clone();
+                        art = fetch_art(&art_url);
+                    }
+                    NowPlaying {
+                        available: true,
+                        title: s.title.clone(),
+                        artist: s.artist.clone(),
+                        album: s.album.clone(),
+                        playing: s.playing,
+                        art: art.as_ref().map(|a| a.0.clone()),
+                        colors: art.as_ref().and_then(|a| a.1.clone()),
+                    }
+                }
+                None => NowPlaying::default(),
+            };
+            if force || state != last {
+                let _ = app.emit("now-playing", &state);
+                last = state;
+            }
+            if let Some(s) = &snap {
+                let _ = app.emit(
+                    "timeline",
+                    &Timeline { position_ms: s.position_ms.min(s.duration_ms), duration_ms: s.duration_ms, playing: s.playing },
+                );
+            }
+        }
     }
 }

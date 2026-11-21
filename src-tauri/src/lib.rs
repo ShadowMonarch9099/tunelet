@@ -122,7 +122,33 @@ mod native {
     }
 }
 
-#[cfg(not(windows))]
+/// macOS window tweaks: the bubble never takes keyboard focus from the app
+/// you're in (it can't become the "key" window until a card needs typing),
+/// and it shows on every desktop (Space). No Dock icon: see `setup`.
+#[cfg(target_os = "macos")]
+mod native {
+    use tauri::WebviewWindow;
+
+    pub fn set_interactive(w: &WebviewWindow, interactive: bool) {
+        let _ = w.set_focusable(interactive);
+    }
+    pub fn show_no_activate(w: &WebviewWindow) {
+        let _ = w.show();
+        let _ = w.set_visible_on_all_workspaces(true);
+    }
+    pub fn hide(w: &WebviewWindow) {
+        let _ = w.hide();
+    }
+    pub fn is_visible(w: &WebviewWindow) -> bool {
+        w.is_visible().unwrap_or(false)
+    }
+    pub fn set_bounds(w: &WebviewWindow, x: i32, y: i32, width: i32, height: i32) {
+        let _ = w.set_size(tauri::PhysicalSize::new(width as u32, height as u32));
+        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 mod native {
     use tauri::WebviewWindow;
     pub fn set_interactive(_w: &WebviewWindow, _interactive: bool) {}
@@ -229,7 +255,16 @@ fn mouse_down() -> bool {
         use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
         (GetAsyncKeyState(VK_LBUTTON as i32) as u16 & 0x8000) != 0
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    unsafe {
+        #[link(name = "CoreGraphics", kind = "framework")]
+        unsafe extern "C" {
+            fn CGEventSourceButtonState(state_id: i32, button: u32) -> bool;
+        }
+        // kCGEventSourceStateCombinedSessionState = 0, kCGMouseButtonLeft = 0
+        CGEventSourceButtonState(0, 0)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     false
 }
 
@@ -330,8 +365,14 @@ pub fn run() {
             app.manage(settings::PendingUpdate::default());
             settings::init(app.handle());
 
+            // macOS: no Dock icon and not in Cmd+Tab, like a menu-bar app.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             if let Some(w) = main_window(app.handle()) {
                 native::set_interactive(&w, false);
+                #[cfg(target_os = "macos")]
+                let _ = w.set_visible_on_all_workspaces(true);
             }
 
             let toggle = MenuItem::with_id(app, "toggle", "Show / Hide", true, None::<&str>)?;

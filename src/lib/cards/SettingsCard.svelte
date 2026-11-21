@@ -2,7 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { onDestroy, onMount } from "svelte";
-  import { app, prettyCombo } from "../app.svelte";
+  import { app, prettyCombo, IS_MAC } from "../app.svelte";
   import type { Action } from "../types";
 
   const ACTIONS: Action[] = ["toggle", "search", "playPause", "next", "previous", "like"];
@@ -116,7 +116,7 @@
 
     <h3>General</h3>
     <label class="row">
-      <span>Start with Windows</span>
+      <span>{IS_MAC ? "Open at login" : "Start with Windows"}</span>
       <input type="checkbox" class="switch" checked={sv.autostart} onchange={(e) => app.toggleAutostart(e.currentTarget.checked)} />
     </label>
     <label class="row" title="When Spotify isn't running, pressing play starts it minimized to the tray, so you never have to open it.">

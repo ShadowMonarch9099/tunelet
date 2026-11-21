@@ -30,7 +30,8 @@
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
@@ -40,6 +41,10 @@
     "homepage": "https://github.com/ShadowMonarch9099/tunelet",
     "windows": {
       "nsis": { "installMode": "currentUser" }
+    },
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
     },
     "shortDescription": "Spotify mini-player",
     "icon": [

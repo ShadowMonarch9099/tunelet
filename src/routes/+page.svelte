@@ -33,6 +33,7 @@
   const STORE_KEY = "tunelet.bob-center";
 
   const win = getCurrentWindow();
+  const IS_MAC = navigator.userAgent.includes("Macintosh");
 
   let mode = $state<Mode>("bob");
   let card = $state<Card>("search");
@@ -120,7 +121,11 @@
     };
   }
 
+  /** The window's current bounds (logical px), as last set by us. */
+  let bounds: Rect = { x: 0, y: 0, w: 0, h: 0 };
+
   async function applyBounds(r: Rect) {
+    bounds = r;
     bobAt = { x: center.x - r.x, y: center.y - r.y };
     await tick();
     ignoreMovesUntil = Date.now() + 500;
@@ -223,7 +228,8 @@
    * menu/card so it opens toward the free side of the screen again.
    */
   let dragging = false;
-  async function dragWindow() {
+  async function dragWindow(e: PointerEvent) {
+    if (IS_MAC) return dragOnMac(e);
     if (dragging) return;
     // Only ever start a window drag while the button is really held: starting
     // one after it's been released leaves Windows in a drag with no button,
@@ -246,6 +252,53 @@
     } finally {
       dragging = false;
     }
+  }
+
+  /**
+   * macOS can't start a system window drag from here (it has to happen inside
+   * the original mouse event), so move the window ourselves: follow the
+   * pointer until the button is released.
+   */
+  function dragOnMac(e: PointerEvent) {
+    if (dragging) return;
+    dragging = true;
+    const start = { x: e.screenX, y: e.screenY };
+    const from = { x: bounds.x, y: bounds.y };
+    let target = from;
+    let sending = false;
+    const send = async () => {
+      if (sending) return;
+      sending = true;
+      try {
+        while (bounds.x !== target.x || bounds.y !== target.y) {
+          const t = target;
+          bounds = { ...bounds, x: t.x, y: t.y };
+          await invoke("set_bounds", { x: t.x, y: t.y, width: bounds.w, height: bounds.h });
+        }
+      } finally {
+        sending = false;
+      }
+    };
+    const move = (ev: PointerEvent) => {
+      target = { x: Math.round(from.x + ev.screenX - start.x), y: Math.round(from.y + ev.screenY - start.y) };
+      send();
+    };
+    const up = async () => {
+      window.removeEventListener("pointermove", move, true);
+      window.removeEventListener("pointerup", up, true);
+      window.removeEventListener("pointercancel", up, true);
+      while (sending) await wait(16);
+      const dropped = { x: bounds.x + bobAt.x, y: bounds.y + bobAt.y };
+      center = clampCenter(dropped, await screenArea());
+      saveCenter();
+      dragging = false;
+      if (mode === "radial") serial(layoutRadial);
+      else if (mode === "card") serial(layoutCard);
+      else serial(layoutBob);
+    };
+    window.addEventListener("pointermove", move, true);
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
   }
 
   function toggleMenu() {

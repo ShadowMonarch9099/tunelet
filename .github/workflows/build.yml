@@ -39,25 +39,38 @@ jobs:
           fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-  windows:
-    name: Windows ${{ matrix.arch }}
+  build:
+    name: ${{ matrix.name }}
     needs: release
     # Run on every push; the release job is skipped (not failed) on non-tag pushes.
     if: ${{ !failure() && !cancelled() }}
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
         include:
-          - arch: x64
+          - name: Windows x64
+            os: windows-latest
+            arch: windows-x64
+            rust-targets: x86_64-pc-windows-msvc
             target: x86_64-pc-windows-msvc
             args: "--target x86_64-pc-windows-msvc"
-          - arch: arm64
+          - name: Windows arm64
+            os: windows-latest
+            arch: windows-arm64
+            rust-targets: aarch64-pc-windows-msvc
             target: aarch64-pc-windows-msvc
             # WiX (.msi) can't target ARM64, so ARM64 ships the .exe installer only.
             args: "--target aarch64-pc-windows-msvc --bundles nsis"
+          - name: macOS (Apple Silicon + Intel)
+            os: macos-latest
+            arch: macos-universal
+            # One universal app that runs natively on both kinds of Mac.
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            target: universal-apple-darwin
+            args: "--target universal-apple-darwin"
     steps:
       - uses: actions/checkout@v4
 
@@ -68,7 +81,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust-targets }}
 
       - uses: swatinem/rust-cache@v2
         with:
@@ -93,15 +106,16 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: tunelet-windows-${{ matrix.arch }}
+          name: tunelet-${{ matrix.arch }}
           path: |
             src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
 
-  # Build latest.json for the in-app updater from both builds' signatures.
+  # Build latest.json for the in-app updater from all builds' signatures.
   updater-json:
     name: Write latest.json
-    needs: [release, windows]
+    needs: [release, build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -125,16 +139,20 @@ jobs:
           const base = `https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/`;
           const entry = (file) => {
             const sig = `sigs/${file}.sig`;
-            return fs.existsSync(sig) ? { signature: fs.readFileSync(sig, "utf8").trim(), url: base + file } : null;
+            return file && fs.existsSync(sig) ? { signature: fs.readFileSync(sig, "utf8").trim(), url: base + encodeURIComponent(file) } : null;
           };
+          const assets = JSON.parse(fs.readFileSync("assets.json", "utf8")).map((a) => a.name);
           const v = TAG.replace(/^v/, "");
           const x64 = entry(`Tunelet_${v}_x64-setup.exe`);
           const x64msi = entry(`Tunelet_${v}_x64_en-US.msi`);
           const arm = entry(`Tunelet_${v}_arm64-setup.exe`);
-          if (!x64 || !arm) { console.error("missing an installer signature"); process.exit(1); }
+          // macOS update bundle (one universal app for both kinds of Mac).
+          const mac = entry(assets.find((n) => n.endsWith(".app.tar.gz")));
+          if (!x64 || !arm || !mac) { console.error("missing an installer signature", { x64: !!x64, arm: !!arm, mac: !!mac }); process.exit(1); }
           const platforms = {
             "windows-x86_64": x64, "windows-x86_64-nsis": x64,
             "windows-aarch64": arm, "windows-aarch64-nsis": arm,
+            "darwin-aarch64": mac, "darwin-x86_64": mac, "darwin-universal": mac,
           };
           if (x64msi) platforms["windows-x86_64-msi"] = x64msi;
           fs.writeFileSync("latest.json", JSON.stringify({ version: v, notes: "", pub_date: new Date().toISOString(), platforms }, null, 2));

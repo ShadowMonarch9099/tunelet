@@ -9,7 +9,7 @@
     open = false,
     onmenu,
     ondrag,
-  }: { open?: boolean; onmenu: () => void; ondrag: () => void } = $props();
+  }: { open?: boolean; onmenu: () => void; ondrag: (e: PointerEvent) => void } = $props();
 
   const SIZE = 52;
   const RING_R = 30;
@@ -45,8 +45,11 @@
     // Button no longer held (release was missed somehow): forget the press.
     if (!(e.buttons & 1)) return reset(e);
     if (Math.hypot(e.screenX - down.x, e.screenY - down.y) > 5) {
-      reset(e);
-      ondrag();
+      // Keep the pointer captured on macOS, where the drag is done by hand
+      // and needs the moves; reset() only clears the "pressed" look.
+      down = null;
+      pressed = false;
+      ondrag(e);
     }
   }
 

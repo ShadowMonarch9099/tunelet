@@ -1,7 +1,7 @@
 [package]
 name = "tunelet"
 version = "0.6.0"
-description = "A tiny always-on-top Spotify mini-player for Windows"
+description = "A tiny always-on-top Spotify mini-player for Windows and macOS"
 authors = ["ShadowMonarch9099"]
 edition = "2024"
 
@@ -18,7 +18,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+# macos-private-api: needed for a transparent window on macOS.
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -31,9 +32,17 @@ base64 = "0.22"
 # default TLS = Windows' built-in SChannel (no extra build tools needed on ARM64)
 reqwest = { version = "0.12", features = ["json"] }
 tokio = { version = "1", features = ["net", "io-util", "time"] }
-keyring = { version = "3", features = ["windows-native"] }
 sha2 = "0.10"
 rand = "0.8"
+
+# Saved Spotify login: Windows Credential Manager / macOS Keychain.
+[target.'cfg(windows)'.dependencies.keyring]
+version = "3"
+features = ["windows-native"]
+
+[target.'cfg(target_os = "macos")'.dependencies.keyring]
+version = "3"
+features = ["apple-native"]
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }
