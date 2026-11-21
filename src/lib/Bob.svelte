@@ -35,13 +35,17 @@
     if (e.button !== 0) return;
     down = { x: e.screenX, y: e.screenY };
     pressed = true;
+    // Keep receiving moves and the release even when a quick flick leaves the
+    // bubble; otherwise the press gets "stuck" and a later hover starts a drag.
+    el?.setPointerCapture(e.pointerId);
   }
 
   function onpointermove(e: PointerEvent) {
     if (!down) return;
+    // Button no longer held (release was missed somehow): forget the press.
+    if (!(e.buttons & 1)) return reset(e);
     if (Math.hypot(e.screenX - down.x, e.screenY - down.y) > 5) {
-      down = null;
-      pressed = false;
+      reset(e);
       ondrag();
     }
   }
@@ -49,9 +53,14 @@
   function onpointerup(e: PointerEvent) {
     if (e.button !== 0) return;
     const click = !!down;
+    reset(e);
+    if (click) onmenu();
+  }
+
+  function reset(e?: PointerEvent) {
     down = null;
     pressed = false;
-    if (click) onmenu();
+    if (e && el?.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
   }
 
   function oncontextmenu(e: MouseEvent) {
@@ -105,6 +114,8 @@
     {onpointerdown}
     {onpointermove}
     {onpointerup}
+    onpointercancel={() => reset()}
+    onlostpointercapture={() => reset()}
     {oncontextmenu}
   >
     {#if app.art}

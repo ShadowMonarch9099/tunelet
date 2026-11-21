@@ -224,6 +224,10 @@
   let dragging = false;
   async function dragWindow() {
     if (dragging) return;
+    // Only ever start a window drag while the button is really held: starting
+    // one after it's been released leaves Windows in a drag with no button,
+    // where the widget sticks to the cursor until the next click.
+    if (!(await invoke<boolean>("mouse_down"))) return;
     dragging = true;
     try {
       await win.startDragging();
@@ -256,6 +260,13 @@
   // ---- startup / events ---------------------------------------------------------------
   onMount(() => {
     app.onRequestClose = () => closeAll();
+    if (import.meta.env.DEV) {
+      // Dev-only peek at the layout state, for debugging through the web view's devtools.
+      (window as any).__tunelet = {
+        state: () => ({ mode, card, dragging, radialShown, cardShown, center, bobAt, focused: document.hasFocus(), vis: document.visibilityState }),
+        queueIdle: () => Promise.race([queue.then(() => "idle"), wait(500).then(() => "busy")]),
+      };
+    }
 
     const offs = [
       listen<NowPlaying>("now-playing", (e) => (app.np = e.payload)),

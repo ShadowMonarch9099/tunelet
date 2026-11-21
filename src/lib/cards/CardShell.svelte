@@ -43,7 +43,7 @@
     role="presentation"
     onpointerdown={(e) => {
       // The header's empty space and title are a drag handle; its buttons aren't.
-      if (e.button === 0 && !(e.target as HTMLElement).closest("button")) ondrag();
+      if (e.button === 0 && e.buttons & 1 && !(e.target as HTMLElement).closest("button")) ondrag();
     }}
   >
     <h2>
