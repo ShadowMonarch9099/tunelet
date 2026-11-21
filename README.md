@@ -23,6 +23,8 @@ A tiny, always-on-top Spotify mini-player for Windows: a round bubble with the a
 
 ## Install
 
+**New here? Follow the [step-by-step setup guide](docs/setup-guide.md)**: download, Spotify Client ID, and connecting, start to finish.
+
 Download the latest installer from the [Releases](../../releases/latest) page:
 
 - **Most PCs (Intel / AMD):** `Tunelet_x.y.z_x64-setup.exe`
