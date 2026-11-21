@@ -29,11 +29,17 @@ jobs:
           if [ -z "$id" ]; then
             cat > notes.md <<'NOTES'
           ### Install
+          **Windows**
           - **Most PCs (Intel/AMD):** download `Tunelet_*_x64-setup.exe`
           - **Snapdragon / ARM PCs:** download `Tunelet_*_arm64-setup.exe`
 
           Windows may say "Windows protected your PC" because the app isn't code-signed. Click **More info → Run anyway**.
-          After installing, open Settings in Tunelet to turn on **Start with Windows**.
+
+          **Mac (beta)**: macOS 11 or newer, Apple Silicon or Intel
+          - Download `Tunelet_*_universal.dmg` and drag Tunelet into Applications.
+          - The first time, macOS blocks it because it isn't signed with a paid Apple developer account: on macOS 15+ go to **System Settings → Privacy & Security → Open Anyway**; on older versions right-click Tunelet → **Open**.
+
+          New to Tunelet? Follow the [setup guide](https://github.com/ShadowMonarch9099/tunelet/blob/main/docs/setup-guide.md) (download, Spotify Client ID, connecting).
           NOTES
             id=$(gh api -X POST "repos/$GITHUB_REPOSITORY/releases" -f tag_name="$TAG" -f name="Tunelet $TAG" -F draft=true -F body=@notes.md --jq .id)
           fi

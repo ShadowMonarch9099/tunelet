@@ -28,7 +28,7 @@ Open **https://github.com/ShadowMonarch9099/tunelet/releases/latest** and scroll
 
 ### Mac
 
-> The Mac version is in testing and not on the download page yet. Until it is, get `Tunelet_..._universal.dmg` from whoever shared Tunelet with you; the steps are the same.
+> The Mac version is new (beta). If something doesn't work right, please [open an issue](https://github.com/ShadowMonarch9099/tunelet/issues) or tell whoever shared Tunelet with you.
 
 1. Download `Tunelet_x.y.z_universal.dmg`. It's one file for every Mac, Apple Silicon (M1–M4) and Intel.
 2. Open the `.dmg` and drag **Tunelet** into **Applications**.

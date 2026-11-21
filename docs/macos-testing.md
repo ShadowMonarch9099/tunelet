@@ -6,7 +6,7 @@ You need: a Mac with macOS 11 or newer and the **Spotify desktop app** installed
 
 ## 1. Install
 
-1. Open `Tunelet_..._universal.dmg` and drag **Tunelet** into **Applications**.
+1. Go to **https://github.com/ShadowMonarch9099/tunelet/releases/latest**, scroll down to **Assets**, and download `Tunelet_x.y.z_universal.dmg`. Open it and drag **Tunelet** into **Applications**.
 2. Open Tunelet from Applications. macOS will block it the first time, because the app isn't signed with a paid Apple developer account:
    - **macOS 15 (Sequoia) or newer:** click **Done**, then open **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to Tunelet. Confirm with your password.
    - **Older macOS:** right-click Tunelet in Applications → **Open** → **Open**.

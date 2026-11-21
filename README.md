@@ -29,6 +29,7 @@ Download the latest installer from the [Releases](../../releases/latest) page:
 
 - **Most PCs (Intel / AMD):** `Tunelet_x.y.z_x64-setup.exe`
 - **Snapdragon / ARM PCs:** `Tunelet_x.y.z_arm64-setup.exe`
+- **Mac (beta, macOS 11+, Apple Silicon or Intel):** `Tunelet_x.y.z_universal.dmg`. See the [setup guide](docs/setup-guide.md#mac) for the first-launch steps.
 
 Windows may show **"Windows protected your PC"** because the app isn't code-signed. Click **More info → Run anyway**. No admin rights needed.
 
