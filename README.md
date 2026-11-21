@@ -23,7 +23,7 @@ A tiny, always-on-top Spotify mini-player for Windows: a round bubble with the a
 
 ## Install
 
-**New here? Follow the [step-by-step setup guide](docs/setup-guide.md)**: download, Spotify Client ID, and connecting, start to finish.
+**New here? Follow the [step-by-step setup guide](docs/setup-guide.md)** for Windows and Mac: download, Spotify Client ID, and connecting, start to finish.
 
 Download the latest installer from the [Releases](../../releases/latest) page:
 
