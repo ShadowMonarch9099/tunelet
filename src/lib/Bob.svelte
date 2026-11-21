@@ -57,7 +57,7 @@
 
   function oncontextmenu(e: MouseEvent) {
     e.preventDefault();
-    if (!app.available) return;
+    // Works even when Spotify is closed: Tunelet starts it hidden and plays.
     app.media("toggle");
     el?.animate(
       [{ transform: "scale(1)" }, { transform: "scale(.88) rotate(-12deg)" }, { transform: "scale(1)" }],
@@ -72,12 +72,17 @@
   class="bob-wrap"
   class:open
   style="--c1: {app.colors[0]}; --c2: {app.colors[1]}"
-  title={app.available
+  title={open ? undefined : app.available
     ? `${app.title} — ${app.artist}\nClick: menu · Right-click: ${app.playing ? "pause" : "play"}`
-    : "Tunelet — click for menu"}
+    : app.waking
+      ? "Starting Spotify…"
+      : `Tunelet — click for menu${app.canWake ? " · Right-click: start Spotify and play" : ""}`}
 >
   <svg class="ring" viewBox="0 0 68 68" aria-hidden="true">
     <circle cx="34" cy="34" r={RING_R} class="ring-bg" />
+    {#if app.waking}
+      <circle cx="34" cy="34" r={RING_R} class="ring-wake" stroke-dasharray="{RING_C * 0.22} {RING_C}" />
+    {/if}
     {#if app.durationMs > 0}
       <circle
         cx="34"
@@ -114,7 +119,7 @@
     {/if}
     <div class="hole"></div>
 
-    {#if app.available}
+    {#if !open && (app.available || app.canWake)}
       <div class="hover">
         <svg viewBox="0 0 24 24"><path d={app.playing ? icon.pause : icon.play} /></svg>
       </div>
@@ -148,6 +153,14 @@
   }
   .ring circle { fill: none; stroke-width: 2.5; }
   .ring-bg { stroke: rgba(255, 255, 255, 0.14); }
+  /* A short arc chasing round the ring while Spotify starts up. */
+  .ring-wake {
+    stroke: rgba(255, 255, 255, 0.85);
+    stroke-linecap: round;
+    transform-origin: 34px 34px;
+    animation: wake 1.1s linear infinite;
+  }
+  @keyframes wake { to { transform: rotate(360deg); } }
   .ring-fg {
     stroke: rgba(255, 255, 255, 0.9);
     stroke-linecap: round;

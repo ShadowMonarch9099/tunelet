@@ -6,6 +6,7 @@ use tauri::{
 use tauri_plugin_global_shortcut::ShortcutState;
 
 mod colors;
+mod launcher;
 mod media;
 mod settings;
 mod spotify;
@@ -20,6 +21,22 @@ fn send_media(app: &AppHandle, cmd: Cmd) {
     if let Some(m) = app.try_state::<Media>() {
         m.send(cmd);
     }
+}
+
+/// Play/pause. If Spotify isn't running, start it hidden and press play once
+/// it's up (when the "Start Spotify when needed" setting is on).
+fn play_pause(app: &AppHandle) {
+    let wake = app.try_state::<SettingsState>().is_some_and(|s| s.launch_spotify());
+    if wake && !launcher::is_running_or_starting() {
+        match launcher::launch_hidden() {
+            Ok(()) => send_media(app, Cmd::PlayWhenReady),
+            Err(e) => {
+                let _ = app.emit("toast", e);
+            }
+        }
+        return;
+    }
+    send_media(app, Cmd::TogglePlay);
 }
 
 fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
@@ -194,7 +211,7 @@ fn screen_area(app: AppHandle) -> Option<ScreenArea> {
 #[tauri::command]
 fn media(app: AppHandle, action: String) {
     let cmd = match action.as_str() {
-        "toggle" => Cmd::TogglePlay,
+        "toggle" => return play_pause(&app),
         "next" => Cmd::Next,
         "previous" => Cmd::Previous,
         _ => Cmd::Refresh,
@@ -245,7 +262,7 @@ fn run_action(app: &AppHandle, action: Action) {
     match action {
         Action::Toggle => toggle_widget(app),
         Action::Search => open_panel(app, "open-search"),
-        Action::PlayPause => send_media(app, Cmd::TogglePlay),
+        Action::PlayPause => play_pause(app),
         Action::Next => send_media(app, Cmd::Next),
         Action::Previous => send_media(app, Cmd::Previous),
         Action::Like => {

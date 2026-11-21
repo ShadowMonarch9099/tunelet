@@ -134,6 +134,7 @@
         <svg viewBox="0 0 24 24"><path d={app.volume === 0 ? icon.muted : icon.volume} /></svg>
       </button>
       <input
+        class="range"
         type="range"
         min="0"
         max="100"
@@ -172,10 +173,10 @@
 <style>
   .now { padding: 4px 18px 16px; display: flex; flex-direction: column; align-items: stretch; }
 
-  .cover-wrap { display: grid; place-items: center; margin: 6px 0 12px; }
+  .cover-wrap { display: grid; place-items: center; margin: 2px 0 10px; }
   .cover {
-    width: 132px;
-    height: 132px;
+    width: 112px;
+    height: 112px;
     border-radius: 50%;
     object-fit: cover;
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15), 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 30px color-mix(in srgb, var(--c1) 60%, transparent);
@@ -194,7 +195,7 @@
   .a { font-size: 12.5px; opacity: 0.7; margin-top: 1px; }
   @keyframes fade { from { opacity: 0; transform: translateY(4px); } }
 
-  .seek { position: relative; height: 18px; margin-top: 10px; cursor: pointer; touch-action: none; }
+  .seek { position: relative; height: 18px; margin-top: 8px; cursor: pointer; touch-action: none; }
   .seek.disabled { opacity: 0.4; cursor: default; }
   .track { position: absolute; left: 0; right: 0; top: 7px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
   .fill { height: 100%; background: #fff; border-radius: 2px; }
@@ -213,7 +214,7 @@
   .seek:hover .knob, .seek.dragging .knob { transform: scale(1); }
   .times { display: flex; justify-content: space-between; font-size: 10.5px; opacity: 0.65; font-variant-numeric: tabular-nums; }
 
-  .transport { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0 10px; }
+  .transport { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 4px 0 8px; }
   .transport button {
     display: grid;
     place-items: center;
@@ -258,34 +259,7 @@
   .mute:disabled { opacity: 0.4; cursor: default; }
   .mute svg { width: 16px; height: 16px; fill: currentColor; }
 
-  /* Custom slider: filled part follows the value exactly. */
-  .vol input {
-    flex: 1;
-    height: 18px;
-    margin: 0;
-    appearance: none;
-    background: transparent;
-    cursor: pointer;
-  }
-  .vol input:disabled { opacity: 0.4; cursor: default; }
-  .vol input::-webkit-slider-runnable-track {
-    height: 4px;
-    border-radius: 2px;
-    background: linear-gradient(to right, #fff var(--v), rgba(255, 255, 255, 0.2) var(--v));
-  }
-  .vol input::-webkit-slider-thumb {
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    margin-top: -4px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-    transition: transform 120ms;
-  }
-  .vol input:hover::-webkit-slider-thumb,
-  .vol input:active::-webkit-slider-thumb { transform: scale(1.25); }
-  .pct { width: 34px; text-align: right; opacity: 0.75; font-variant-numeric: tabular-nums; }
+  .vol .range { flex: 1; }
 
   .section-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin: 12px 0 4px; }
   .devices { display: flex; flex-direction: column; gap: 2px; }

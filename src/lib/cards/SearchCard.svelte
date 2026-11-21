@@ -131,7 +131,7 @@
     {#if app.searching || app.playlistsLoading}<span class="spinner"></span>{/if}
   </div>
 
-  <div class="results scroll">
+  <div class="results scroll fade">
     {#if app.error}
       <p class="error pad">{app.error}</p>
     {:else if tab === "search" && !app.query.trim()}

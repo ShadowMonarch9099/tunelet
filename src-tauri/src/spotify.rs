@@ -15,7 +15,7 @@ use std::{
     collections::HashMap,
     time::{Duration, Instant},
 };
-use tauri::{async_runtime::Mutex, AppHandle, State};
+use tauri::{async_runtime::Mutex, AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -27,6 +27,7 @@ pub const REDIRECT_URI: &str = "http://127.0.0.1:43821/callback";
 const SCOPES: &str = "user-read-playback-state user-modify-playback-state \
                       user-library-read user-library-modify playlist-read-private";
 const API: &str = "https://api.spotify.com/v1";
+const NO_DEVICE: &str = "No Spotify device found. Open the Spotify app first.";
 const TOKEN_URL: &str = "https://accounts.spotify.com/api/token";
 const KEYRING_SERVICE: &str = "Tunelet";
 const KEYRING_USER: &str = "spotify";
@@ -198,22 +199,70 @@ impl Spotify {
             StatusCode::FORBIDDEN => {
                 "Spotify refused that. If you just made your developer app, make sure your account is added under User Management.".into()
             }
-            StatusCode::NOT_FOUND => "No Spotify device found. Open the Spotify app first.".into(),
+            StatusCode::NOT_FOUND => NO_DEVICE.into(),
             StatusCode::TOO_MANY_REQUESTS => "Spotify is rate-limiting requests. Try again in a moment.".into(),
             _ => format!("Spotify error {status}."),
         })
     }
 
-    async fn first_device(&self) -> Res<String> {
+    async fn device_list(&self) -> Res<Vec<Value>> {
         let resp = Self::check(self.api(Method::GET, "/me/player/devices", &[], None).await?).await?;
         let v: Value = resp.json().await.map_err(net_err)?;
-        let devices = v["devices"].as_array().cloned().unwrap_or_default();
-        devices
-            .iter()
+        Ok(v["devices"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
             .filter(|d| !d["is_restricted"].as_bool().unwrap_or(false))
-            .max_by_key(|d| d["type"].as_str() == Some("Computer"))
-            .and_then(|d| d["id"].as_str().map(String::from))
-            .ok_or_else(|| "No Spotify device found. Open the Spotify app first.".into())
+            .collect())
+    }
+
+    /// Picks a device to play on when nothing is active. With `wake`, starts
+    /// the Spotify app on this PC (hidden) if it isn't running and waits for it
+    /// to come online, so playback lands on this PC rather than, say, a phone.
+    pub async fn ready_device(&self, app: &AppHandle, wake: bool) -> Res<String> {
+        fn pick(list: &[Value], only_new_than: Option<&[String]>) -> Option<String> {
+            list.iter()
+                .filter(|d| match only_new_than {
+                    Some(seen) => d["type"].as_str() == Some("Computer") && !seen.iter().any(|s| d["id"].as_str() == Some(s)),
+                    None => true,
+                })
+                .max_by_key(|d| (d["is_active"].as_bool().unwrap_or(false), d["type"].as_str() == Some("Computer")))
+                .and_then(|d| d["id"].as_str().map(String::from))
+        }
+
+        let list = self.device_list().await?;
+        let local = crate::launcher::is_running_or_starting();
+        let has_computer = list.iter().any(|d| d["type"].as_str() == Some("Computer"));
+        if !wake || (local && has_computer) {
+            return pick(&list, None).ok_or_else(|| NO_DEVICE.into());
+        }
+
+        // Wait for this PC's Spotify to show up: a Computer we haven't seen yet
+        // (or any Computer, if Spotify here was already running but not online).
+        let seen: Vec<String> = if local {
+            Vec::new()
+        } else {
+            list.iter().filter_map(|d| d["id"].as_str().map(String::from)).collect()
+        };
+        crate::launcher::launch_hidden()?;
+        let _ = app.emit("spotify-waking", true);
+        let mut found = None;
+        for _ in 0..30 {
+            tokio::time::sleep(Duration::from_millis(700)).await;
+            if let Ok(now) = self.device_list().await {
+                if let Some(id) = pick(&now, Some(&seen)) {
+                    found = Some(id);
+                    break;
+                }
+            }
+        }
+        let _ = app.emit("spotify-waking", false);
+        match found {
+            Some(id) => Ok(id),
+            // Spotify here didn't come online; fall back to any other device.
+            None => pick(&self.device_list().await?, None).ok_or_else(|| "Spotify took too long to start. Try again.".into()),
+        }
     }
 
     async fn login(&self, app: &AppHandle, client_id: String) -> Res<()> {
@@ -507,22 +556,33 @@ pub async fn spotify_search(sp: State<'_, Spotify>, query: String) -> Res<Vec<It
 }
 
 #[tauri::command]
-pub async fn spotify_play(sp: State<'_, Spotify>, uri: String) -> Res<()> {
+pub async fn spotify_play(app: AppHandle, sp: State<'_, Spotify>, uri: String) -> Res<()> {
     let body = if uri.starts_with("spotify:track:") {
         json!({ "uris": [uri] })
     } else {
         json!({ "context_uri": uri })
     };
     let resp = sp.api(Method::PUT, "/me/player/play", &[], Some(body.clone())).await?;
-    if resp.status() == StatusCode::NOT_FOUND {
-        // Nothing active yet: wake the Spotify app on this PC and play there.
-        let device = sp.first_device().await?;
-        let resp = sp.api(Method::PUT, "/me/player/play", &[("device_id", &device)], Some(body)).await?;
+    if resp.status() != StatusCode::NOT_FOUND {
         Spotify::check(resp).await?;
         return Ok(());
     }
-    Spotify::check(resp).await?;
-    Ok(())
+    // Nothing active: play on this PC, starting Spotify (hidden) if needed.
+    let wake = app.state::<crate::settings::SettingsState>().launch_spotify();
+    let device = sp.ready_device(&app, wake).await?;
+    // A device that has only just come online can refuse the first request.
+    let mut last = Ok(());
+    for attempt in 0..4 {
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_millis(900)).await;
+        }
+        let resp = sp.api(Method::PUT, "/me/player/play", &[("device_id", &device)], Some(body.clone())).await?;
+        last = Spotify::check(resp).await.map(|_| ());
+        if last.is_ok() {
+            break;
+        }
+    }
+    last
 }
 
 #[tauri::command]

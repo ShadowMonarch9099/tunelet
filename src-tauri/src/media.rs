@@ -38,6 +38,8 @@ pub enum Cmd {
     Seek(u64),
     /// Re-send the current state (used when the UI loads).
     Refresh,
+    /// Spotify was just started: press play as soon as its session appears.
+    PlayWhenReady,
 }
 
 /// Handle to the media worker thread, kept in Tauri state.
@@ -71,7 +73,7 @@ mod win {
     use base64::Engine;
     use std::{
         sync::mpsc::{Receiver, RecvTimeoutError},
-        time::Duration,
+        time::{Duration, Instant},
     };
     use tauri::{AppHandle, Emitter};
     use windows::{
@@ -90,6 +92,8 @@ mod win {
     /// Spotify often publishes the new title before the new cover, so keep
     /// re-reading the cover for a few polls after a track change.
     const ART_RETRY_POLLS: u8 = 5;
+    /// How long to wait for a freshly started Spotify before giving up.
+    const WAKE_TIMEOUT: Duration = Duration::from_secs(25);
 
     struct Worker {
         manager: Option<Manager>,
@@ -113,11 +117,17 @@ mod win {
             art_polls_left: 0,
         };
         let mut last = NowPlaying::default();
+        // Set while waiting for a just-launched Spotify to be ready to play.
+        let mut play_by: Option<Instant> = None;
 
         loop {
             let mut force = false;
             match rx.recv_timeout(POLL) {
                 Ok(Cmd::Refresh) => force = true,
+                Ok(Cmd::PlayWhenReady) => {
+                    play_by = Some(Instant::now() + WAKE_TIMEOUT);
+                    let _ = app.emit("spotify-waking", true);
+                }
                 Ok(cmd) => {
                     if let Some(s) = w.spotify_session() {
                         let _ = control(&s, cmd);
@@ -127,6 +137,25 @@ mod win {
                 }
                 Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => break,
+            }
+
+            if let Some(deadline) = play_by {
+                // Spotify registers its session a little after it starts, and
+                // can refuse "play" for a moment after that; keep trying.
+                let played = w.spotify_session().is_some_and(|s| {
+                    let playing = s
+                        .GetPlaybackInfo()
+                        .and_then(|i| i.PlaybackStatus())
+                        .is_ok_and(|st| st == Status::Playing);
+                    playing || s.TryPlayAsync().and_then(|op| op.join()).unwrap_or(false)
+                });
+                if played || Instant::now() > deadline {
+                    play_by = None;
+                    let _ = app.emit("spotify-waking", false);
+                    if !played {
+                        let _ = app.emit("toast", "Spotify took too long to start. Try again.");
+                    }
+                }
             }
 
             let state = w.read().unwrap_or_default();
@@ -146,7 +175,7 @@ mod win {
             Cmd::Next => s.TrySkipNextAsync()?.join()?,
             Cmd::Previous => s.TrySkipPreviousAsync()?.join()?,
             Cmd::Seek(ms) => s.TryChangePlaybackPositionAsync(ms as i64 * 10_000)?.join()?,
-            Cmd::Refresh => true,
+            Cmd::Refresh | Cmd::PlayWhenReady => true,
         };
         Ok(())
     }

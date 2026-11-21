@@ -23,8 +23,16 @@ class App {
   clock = $state(performance.now());
 
   available = $derived(!!this.np?.available);
-  title = $derived(this.np?.available ? this.np.title : "Nothing playing");
-  artist = $derived(this.np?.available ? this.np.artist : "Open Spotify to start");
+  /** True while Spotify is being started in the background. */
+  waking = $state(false);
+  /** Whether pressing play may start Spotify (the "Start Spotify when needed" setting). */
+  get canWake() {
+    return this.sv?.settings.launchSpotify ?? true;
+  }
+  title = $derived(this.np?.available ? this.np.title : this.waking ? "Starting Spotify…" : "Nothing playing");
+  artist = $derived(
+    this.np?.available ? this.np.artist : this.waking ? "It'll start playing in a moment" : this.canWake ? "Press play to start" : "Open Spotify to start",
+  );
   playing = $derived(this.np?.available ? this.np.playing : false);
   art = $derived(this.np?.available ? this.np.art : null);
   colors = $derived<[string, string]>(this.np?.available && this.np.colors ? this.np.colors : IDLE);

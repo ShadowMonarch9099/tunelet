@@ -10,6 +10,7 @@ A tiny, always-on-top Spotify mini-player for Windows: a round bubble with the a
 - **Radial menu** — click the bubble and the options spring out around it: play/skip, like, search, playlists, now playing, settings
 - **Album-adaptive look** — the glow and every card shift to the current cover's colors
 - **Doesn't get in your way** — clicking it keeps focus in your current app; hidden from the taskbar and Alt+Tab
+- **No need to open Spotify** — press play and Tunelet starts the Spotify app minimized to the tray, then plays (turn off in Settings)
 - **Search anything** — play or queue songs, albums and playlists from a card that opens beside the bubble
 - **Your playlists** — Liked Songs and all your playlists, one keypress away
 - **Like songs** — heart button or `Ctrl+Alt+L` from any app
@@ -45,7 +46,7 @@ No client secret is needed — Tunelet uses the PKCE login flow, and tokens are 
 | | |
 |---|---|
 | Click the bubble | Open / close the menu |
-| Right-click | Play / pause |
+| Right-click | Play / pause (starts Spotify in the background if it's closed) |
 | Drag | Move it (it remembers where) |
 | Hover | Shows play/pause and the song name |
 

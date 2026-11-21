@@ -224,6 +224,8 @@
       }),
       listen<{ liked?: boolean; error?: string }>("like-result", (e) => app.likeResult(e.payload)),
       listen("open-search", () => openCard("search")),
+      listen<boolean>("spotify-waking", (e) => (app.waking = e.payload)),
+      listen<string>("toast", (e) => app.showToast(e.payload)),
       listen("open-settings", () => openCard("settings")),
       win.onMoved(async ({ payload }) => {
         // Only user drags in bob mode move the anchor; our own resizes don't.
@@ -318,7 +320,7 @@
 
 <div
   class="stage"
-  style="--c1: {app.colors[0]}; --c2: {app.colors[1]}; opacity: {app.opacity}"
+  style="--c1: {app.colors[0]}; --c2: {app.colors[1]}"
   role="presentation"
   onpointerdown={onStageDown}
 >
@@ -340,7 +342,8 @@
     {#if mode === "radial"}
       <Radial {spots} shown={radialShown} onpick={pick} />
     {/if}
-    <div class="bob-pos">
+    <!-- The opacity setting only fades the resting bubble; cards and the menu stay solid so they're readable. -->
+    <div class="bob-pos" style="opacity: {app.opacity}">
       <Bob bind:this={bobRef} open={mode !== "bob"} draggable={mode === "bob"} onmenu={toggleMenu} />
     </div>
   </div>

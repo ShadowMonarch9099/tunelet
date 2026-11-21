@@ -34,6 +34,9 @@ pub struct Settings {
     pub hotkeys: HashMap<Action, String>,
     /// Widget opacity, 0.4 to 1.0.
     pub opacity: f64,
+    /// Start the Spotify app (minimized to the tray) when you press play
+    /// and it isn't running.
+    pub launch_spotify: bool,
 }
 
 impl Default for Settings {
@@ -41,6 +44,7 @@ impl Default for Settings {
         Self {
             hotkeys: DEFAULT_HOTKEYS.iter().map(|(a, k)| (*a, k.to_string())).collect(),
             opacity: 1.0,
+            launch_spotify: true,
         }
     }
 }
@@ -53,6 +57,10 @@ pub struct SettingsState {
 }
 
 impl SettingsState {
+    pub fn launch_spotify(&self) -> bool {
+        self.settings.lock().map(|s| s.launch_spotify).unwrap_or(true)
+    }
+
     pub fn action_for(&self, shortcut: &Shortcut) -> Option<Action> {
         self.bindings.lock().ok()?.get(&shortcut.id()).copied()
     }
