@@ -1,6 +1,6 @@
 [package]
 name = "tunelet"
-version = "0.5.0"
+version = "0.6.0"
 description = "A tiny always-on-top Spotify mini-player for Windows"
 authors = ["ShadowMonarch9099"]
 edition = "2024"
