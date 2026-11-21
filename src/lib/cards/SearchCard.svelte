@@ -20,7 +20,41 @@
       (p) => !app.query.trim() || p.name.toLowerCase().includes(app.query.trim().toLowerCase()),
     ),
   );
-  let items = $derived(tab === "search" ? app.results : filtered);
+  /** Songs of the open playlist, filtered by the search box. */
+  let listTracks = $derived(
+    (app.openList?.tracks ?? []).filter((t) => {
+      const q = app.query.trim().toLowerCase();
+      return !q || t.name.toLowerCase().includes(q) || t.subtitle.toLowerCase().includes(q);
+    }),
+  );
+  let inList = $derived(tab === "playlists" && !!app.openList);
+  let items = $derived(tab === "search" ? app.results : inList ? listTracks : filtered);
+
+  function openList(it: Item) {
+    app.query = "";
+    selected = 0;
+    app.openPlaylist(it);
+    focus();
+  }
+
+  function back() {
+    app.query = "";
+    selected = 0;
+    app.closePlaylist();
+    focus();
+  }
+
+  /** Load the next page of songs when scrolled near the bottom. */
+  function onScroll(e: Event) {
+    const el = e.currentTarget as HTMLElement;
+    if (inList && el.scrollTop + el.clientHeight > el.scrollHeight - 240) app.loadMoreTracks();
+  }
+
+  function activate(it: Item) {
+    if (inList) app.playInList(it);
+    else if (tab === "playlists") openList(it);
+    else app.play(it);
+  }
 
   onMount(() => {
     if (tab === "playlists" && app.auth?.loggedIn) app.loadPlaylists();
@@ -42,6 +76,14 @@
       e.preventDefault();
       selected = Math.max(selected - 1, 0);
       scrollSel();
+    } else if (e.key === "Escape" && inList) {
+      // Esc steps back out of a playlist before it closes the card.
+      e.preventDefault();
+      e.stopPropagation();
+      back();
+    } else if (e.key === "Backspace" && inList && !app.query) {
+      e.preventDefault();
+      back();
     } else if (e.key === "Tab") {
       e.preventDefault();
       onswitch(tab === "search" ? "playlists" : "search");
@@ -49,7 +91,7 @@
       e.preventDefault();
       const it = items[selected];
       if (e.shiftKey && it.kind === "track") app.addToQueue(it);
-      else app.play(it);
+      else activate(it);
     }
   }
 
@@ -125,13 +167,39 @@
         app.onQueryInput(tab);
       }}
       onkeydown={onKey}
-      placeholder={tab === "search" ? "Songs, albums, playlists" : "Filter your playlists"}
+      placeholder={tab === "search" ? "Songs, albums, playlists" : inList ? "Filter songs" : "Filter your playlists"}
       spellcheck="false"
     />
-    {#if app.searching || app.playlistsLoading}<span class="spinner"></span>{/if}
+    {#if app.searching || app.playlistsLoading || app.openList?.loading}<span class="spinner"></span>{/if}
   </div>
 
-  <div class="results scroll fade">
+  {#if inList && app.openList}
+    {@const l = app.openList}
+    <div class="list-head">
+      <button class="icon-btn" title="Back (Esc)" aria-label="Back" onclick={back}>
+        <svg viewBox="0 0 24 24"><path d={icon.back} /></svg>
+      </button>
+      <div class="thumb small" class:liked-tile={l.item.kind === "liked"}>
+        {#if l.item.kind === "liked"}
+          <svg viewBox="0 0 24 24"><path d={icon.heart} /></svg>
+        {:else if l.item.image}
+          <img src={l.item.image} alt="" draggable="false" />
+        {/if}
+      </div>
+      <div class="info">
+        <div class="name">{l.item.name}</div>
+        <div class="sub">{l.total ? `${l.total} songs` : l.item.subtitle}</div>
+      </div>
+      <button class="round-btn" title="Shuffle play" aria-label="Shuffle play" onclick={() => app.playList(l.item, true)}>
+        <svg viewBox="0 0 24 24"><path d={icon.shuffle} /></svg>
+      </button>
+      <button class="round-btn accent" title="Play" aria-label="Play" onclick={() => app.playList(l.item, false)}>
+        <svg viewBox="0 0 24 24"><path d={icon.play} /></svg>
+      </button>
+    </div>
+  {/if}
+
+  <div class="results scroll fade" onscroll={onScroll}>
     {#if app.error}
       <p class="error pad">{app.error}</p>
     {:else if tab === "search" && !app.query.trim()}
@@ -141,11 +209,15 @@
       </div>
     {:else if tab === "search" && !app.searching && app.results.length === 0}
       <div class="center muted">No results</div>
-    {:else if tab === "playlists" && app.playlists && filtered.length === 0}
+    {:else if inList && app.openList?.error}
+      <p class="note pad">{app.openList.error}</p>
+    {:else if inList && !app.openList?.loading && listTracks.length === 0}
+      <div class="center muted">{app.query.trim() ? "No matching songs" : "No songs"}</div>
+    {:else if tab === "playlists" && !inList && app.playlists && filtered.length === 0}
       <div class="center muted">{app.query.trim() ? "No matching playlists" : "No playlists yet"}</div>
     {/if}
 
-    {#each items as it, i (it.uri)}
+    {#each items as it, i (inList ? `${i}:${it.uri}` : it.uri)}
       <div
         class="result"
         class:selected={i === selected}
@@ -153,7 +225,7 @@
         role="button"
         tabindex="-1"
         onmouseenter={() => (selected = i)}
-        onclick={() => app.play(it)}
+        onclick={() => activate(it)}
         onkeydown={() => {}}
       >
         <div class="thumb" class:liked-tile={it.kind === "liked"}>
@@ -170,7 +242,19 @@
             {sub(it)}
           </div>
         </div>
-        {#if it.kind === "track"}
+        {#if tab === "playlists" && !inList}
+          <button
+            class="row-play queue"
+            title="Play"
+            aria-label="Play {it.name}"
+            onclick={(e) => {
+              e.stopPropagation();
+              app.playList(it, false);
+            }}
+          >
+            <svg viewBox="0 0 24 24"><path d={icon.play} /></svg>
+          </button>
+        {:else if it.kind === "track"}
           <button
             class="chip queue"
             title="Add to queue (Shift+Enter)"
@@ -183,3 +267,42 @@
     {/each}
   </div>
 {/if}
+
+<style>
+  .list-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 12px 6px 6px;
+    animation: row-in 240ms ease both;
+  }
+  .list-head .info { flex: 1; min-width: 0; line-height: 1.3; }
+  .thumb.small { width: 36px; height: 36px; border-radius: 6px; }
+  .icon-btn,
+  .round-btn,
+  .row-play {
+    display: grid;
+    place-items: center;
+    flex: none;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    cursor: pointer;
+    transition: background 150ms, transform 150ms, opacity 150ms;
+  }
+  .icon-btn { width: 28px; height: 28px; background: transparent; }
+  .icon-btn:hover { background: rgba(255, 255, 255, 0.14); }
+  .round-btn { width: 32px; height: 32px; background: rgba(255, 255, 255, 0.14); }
+  .round-btn:hover { background: rgba(255, 255, 255, 0.24); }
+  .round-btn.accent { background: #fff; color: #111; }
+  .round-btn.accent:hover { transform: scale(1.06); }
+  .icon-btn:active,
+  .round-btn:active,
+  .row-play:active { transform: scale(0.9); }
+  .icon-btn svg,
+  .round-btn svg { width: 16px; height: 16px; fill: currentColor; }
+  .row-play { width: 28px; height: 28px; background: #fff; color: #111; }
+  .row-play svg { width: 14px; height: 14px; fill: currentColor; }
+  .note { font-size: 12px; opacity: 0.8; line-height: 1.45; margin: 6px 0; }
+</style>

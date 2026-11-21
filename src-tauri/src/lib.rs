@@ -219,6 +219,19 @@ fn media(app: AppHandle, action: String) {
     send_media(&app, cmd);
 }
 
+/// Whether the left mouse button is held. A window drag is run by Windows,
+/// which swallows the button-up, so the UI polls this to know when it ended.
+#[tauri::command]
+fn mouse_down() -> bool {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+        (GetAsyncKeyState(VK_LBUTTON as i32) as u16 & 0x8000) != 0
+    }
+    #[cfg(not(windows))]
+    false
+}
+
 /// Seek via Windows media controls (works without a Spotify login).
 #[tauri::command]
 fn media_seek(app: AppHandle, position_ms: u64) {
@@ -358,11 +371,14 @@ pub fn run() {
             screen_area,
             media,
             media_seek,
+            mouse_down,
             spotify::spotify_status,
             spotify::spotify_login,
             spotify::spotify_logout,
             spotify::spotify_search,
             spotify::spotify_play,
+            spotify::spotify_shuffle,
+            spotify::spotify_playlist_tracks,
             spotify::spotify_queue,
             spotify::spotify_player,
             spotify::spotify_set_liked,

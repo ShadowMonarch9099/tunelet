@@ -12,7 +12,7 @@ import type {
   SettingsView,
   Timeline,
   UpdateState,
-} from "./types";
+ TrackPage } from "./types";
 
 const IDLE: [string, string] = ["#3a2a5c", "#12324a"];
 
@@ -68,6 +68,19 @@ class App {
   searching = $state(false);
   playlists = $state<Item[] | null>(null);
   playlistsLoading = $state(false);
+  /** The playlist opened to see its songs (null = showing the list of playlists). */
+  openList = $state<{
+    item: Item;
+    tracks: Item[];
+    total: number;
+    next: number | null;
+    loading: boolean;
+    error: string;
+  } | null>(null);
+
+  // ---- shuffle -----------------------------------------------------------------
+  shuffle = $derived(this.player?.shuffle ?? false);
+  smartShuffle = $derived(this.player?.smartShuffle ?? false);
   #searchTimer: ReturnType<typeof setTimeout> | undefined;
   #searchSeq = 0;
 
@@ -275,6 +288,73 @@ class App {
     try {
       await invoke("spotify_play", { uri: item.uri });
       this.showToast(`Playing ${item.name}`);
+      setTimeout(() => this.onRequestClose(), 450);
+    } catch (e) {
+      this.handleError(e);
+    }
+  }
+
+  /** Turns shuffle on/off. With Smart Shuffle on, this turns it off (the API can't turn Smart Shuffle on). */
+  async toggleShuffle() {
+    if (!this.auth?.loggedIn) return this.showToast("Connect Spotify to use shuffle");
+    const on = !(this.shuffle || this.smartShuffle);
+    if (this.player) this.player = { ...this.player, shuffle: on, smartShuffle: false };
+    try {
+      await invoke("spotify_shuffle", { on });
+      this.showToast(on ? "Shuffle on" : "Shuffle off");
+    } catch (e) {
+      this.handleError(e);
+    }
+    setTimeout(() => this.refreshPlayer(), 700);
+  }
+
+  /** Opens a playlist (or Liked Songs) to show its songs. */
+  async openPlaylist(item: Item) {
+    this.openList = { item, tracks: [], total: 0, next: 0, loading: false, error: "" };
+    await this.loadMoreTracks();
+  }
+
+  closePlaylist() {
+    this.openList = null;
+  }
+
+  async loadMoreTracks() {
+    const l = this.openList;
+    if (!l || l.loading || l.next === null) return;
+    l.loading = true;
+    try {
+      const page = await invoke<TrackPage>("spotify_playlist_tracks", { uri: l.item.uri, offset: l.next });
+      if (this.openList !== l) return; // closed or switched meanwhile
+      l.tracks.push(...page.tracks);
+      l.total = page.total;
+      l.next = page.next;
+    } catch (e) {
+      if (String(e) === "not_logged_in") return this.handleError(e);
+      l.error = String(e);
+      l.next = null;
+    } finally {
+      l.loading = false;
+    }
+  }
+
+  /** Plays a whole playlist from the top, or shuffled. */
+  async playList(item: Item, shuffle: boolean) {
+    try {
+      await invoke("spotify_play", { uri: item.uri, context: null, shuffle });
+      this.showToast(shuffle ? `Shuffling ${item.name}` : `Playing ${item.name}`);
+      setTimeout(() => this.onRequestClose(), 450);
+    } catch (e) {
+      this.handleError(e);
+    }
+  }
+
+  /** Plays a song inside the open playlist, carrying on with the rest of it. */
+  async playInList(track: Item) {
+    const l = this.openList;
+    if (!l) return this.play(track);
+    try {
+      await invoke("spotify_play", { uri: track.uri, context: l.item.uri, shuffle: null });
+      this.showToast(`Playing ${track.name}`);
       setTimeout(() => this.onRequestClose(), 450);
     } catch (e) {
       this.handleError(e);

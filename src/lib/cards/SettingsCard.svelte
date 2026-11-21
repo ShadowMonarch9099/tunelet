@@ -97,7 +97,7 @@
 
     <h3>Appearance</h3>
     <div class="row">
-      <span>Bubble opacity</span>
+      <span>Opacity</span>
       <span class="slider">
         <input
           class="range"

@@ -75,6 +75,8 @@ pub struct Item {
     name: String,
     subtitle: String,
     image: Option<String>,
+    /// Playlists: whether you own it. Spotify only lists the songs of your own playlists.
+    owned: bool,
 }
 
 fn keyring_entry() -> Option<keyring::Entry> {
@@ -401,6 +403,7 @@ fn parse_search(v: &Value) -> Vec<Item> {
             name: t["name"].as_str().unwrap_or_default().into(),
             subtitle: artist_names(t),
             image: smallest_image(&t["album"]["images"]),
+            owned: false,
         });
     }
     for a in list("albums").iter().filter(|a| !a.is_null()).take(3) {
@@ -410,6 +413,7 @@ fn parse_search(v: &Value) -> Vec<Item> {
             name: a["name"].as_str().unwrap_or_default().into(),
             subtitle: format!("Album · {}", artist_names(a)),
             image: smallest_image(&a["images"]),
+            owned: false,
         });
     }
     for p in list("playlists").iter().filter(|p| !p.is_null()).take(3) {
@@ -419,6 +423,7 @@ fn parse_search(v: &Value) -> Vec<Item> {
             name: p["name"].as_str().unwrap_or_default().into(),
             subtitle: format!("Playlist · {}", p["owner"]["display_name"].as_str().unwrap_or("Spotify")),
             image: smallest_image(&p["images"]),
+            owned: false,
         });
     }
     out.retain(|i| !i.uri.is_empty());
@@ -447,6 +452,11 @@ pub struct PlayerState {
     track_uri: Option<String>,
     liked: Option<bool>,
     is_playing: bool,
+    shuffle: bool,
+    /// Spotify's Smart Shuffle. The API reports it but can't switch it.
+    smart_shuffle: bool,
+    /// What's playing from (a playlist, album, Liked Songs...).
+    context_uri: Option<String>,
 }
 
 fn parse_device(d: &Value) -> Option<Device> {
@@ -476,7 +486,16 @@ impl Spotify {
     async fn player(&self) -> Res<PlayerState> {
         let resp = self.api(Method::GET, "/me/player", &[], None).await?;
         if resp.status() == StatusCode::NO_CONTENT {
-            return Ok(PlayerState { active: false, device: None, track_uri: None, liked: None, is_playing: false });
+            return Ok(PlayerState {
+                active: false,
+                device: None,
+                track_uri: None,
+                liked: None,
+                is_playing: false,
+                shuffle: false,
+                smart_shuffle: false,
+                context_uri: None,
+            });
         }
         let v: Value = Self::check(resp).await?.json().await.map_err(net_err)?;
         let track_uri = v["item"]["uri"].as_str().map(String::from);
@@ -490,6 +509,9 @@ impl Spotify {
             track_uri,
             liked,
             is_playing: v["is_playing"].as_bool().unwrap_or(false),
+            shuffle: v["shuffle_state"].as_bool().unwrap_or(false),
+            smart_shuffle: v["smart_shuffle"].as_bool().unwrap_or(false),
+            context_uri: v["context"]["uri"].as_str().map(String::from),
         })
     }
 
@@ -555,34 +577,115 @@ pub async fn spotify_search(sp: State<'_, Spotify>, query: String) -> Res<Vec<It
     Ok(parse_search(&v))
 }
 
+/// Plays `uri`. With `context` (a playlist/album/Liked Songs URI), plays that
+/// list starting at the `uri` track, so it carries on with the rest of the list.
+/// With `shuffle`, turns shuffle on first so it starts from a random song.
 #[tauri::command]
-pub async fn spotify_play(app: AppHandle, sp: State<'_, Spotify>, uri: String) -> Res<()> {
-    let body = if uri.starts_with("spotify:track:") {
-        json!({ "uris": [uri] })
-    } else {
-        json!({ "context_uri": uri })
+pub async fn spotify_play(
+    app: AppHandle,
+    sp: State<'_, Spotify>,
+    uri: String,
+    context: Option<String>,
+    shuffle: Option<bool>,
+) -> Res<()> {
+    let body = match &context {
+        Some(ctx) => json!({ "context_uri": ctx, "offset": { "uri": uri } }),
+        None if uri.starts_with("spotify:track:") => json!({ "uris": [uri] }),
+        None => json!({ "context_uri": uri }),
     };
+    // Shuffle needs an active device; if there's none yet, it's set after playback starts.
+    let mut shuffle_pending = false;
+    if let Some(on) = shuffle {
+        let state = on.to_string();
+        let resp = sp.api(Method::PUT, "/me/player/shuffle", &[("state", &state)], None).await?;
+        shuffle_pending = !resp.status().is_success();
+    }
+
     let resp = sp.api(Method::PUT, "/me/player/play", &[], Some(body.clone())).await?;
     if resp.status() != StatusCode::NOT_FOUND {
         Spotify::check(resp).await?;
-        return Ok(());
-    }
-    // Nothing active: play on this PC, starting Spotify (hidden) if needed.
-    let wake = app.state::<crate::settings::SettingsState>().launch_spotify();
-    let device = sp.ready_device(&app, wake).await?;
-    // A device that has only just come online can refuse the first request.
-    let mut last = Ok(());
-    for attempt in 0..4 {
-        if attempt > 0 {
-            tokio::time::sleep(Duration::from_millis(900)).await;
+    } else {
+        // Nothing active: play on this PC, starting Spotify (hidden) if needed.
+        let wake = app.state::<crate::settings::SettingsState>().launch_spotify();
+        let device = sp.ready_device(&app, wake).await?;
+        // A device that has only just come online can refuse the first request.
+        let mut last = Ok(());
+        for attempt in 0..4 {
+            if attempt > 0 {
+                tokio::time::sleep(Duration::from_millis(900)).await;
+            }
+            let resp = sp.api(Method::PUT, "/me/player/play", &[("device_id", &device)], Some(body.clone())).await?;
+            last = Spotify::check(resp).await.map(|_| ());
+            if last.is_ok() {
+                break;
+            }
         }
-        let resp = sp.api(Method::PUT, "/me/player/play", &[("device_id", &device)], Some(body.clone())).await?;
-        last = Spotify::check(resp).await.map(|_| ());
-        if last.is_ok() {
-            break;
-        }
+        last?;
     }
-    last
+
+    if shuffle_pending && shuffle == Some(true) {
+        // Turn shuffle on now that a device is playing, and skip off the first
+        // song so the order really starts somewhere random.
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let _ = sp.api(Method::PUT, "/me/player/shuffle", &[("state", "true")], None).await;
+        let _ = sp.api(Method::POST, "/me/player/next", &[], None).await;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn spotify_shuffle(sp: State<'_, Spotify>, on: bool) -> Res<()> {
+    let state = on.to_string();
+    Spotify::check(sp.api(Method::PUT, "/me/player/shuffle", &[("state", &state)], None).await?).await?;
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrackPage {
+    tracks: Vec<Item>,
+    total: u64,
+    /// Offset to load the next page from, if there's more.
+    next: Option<u64>,
+}
+
+const PAGE: u64 = 50;
+
+/// One page of songs in a playlist or Liked Songs.
+#[tauri::command]
+pub async fn spotify_playlist_tracks(sp: State<'_, Spotify>, uri: String, offset: u64) -> Res<TrackPage> {
+    let (limit, off) = (PAGE.to_string(), offset.to_string());
+    let (path, key) = if uri.ends_with(":collection") {
+        ("/me/tracks".to_string(), "track")
+    } else {
+        let id = uri.rsplit(':').next().unwrap_or_default();
+        (format!("/playlists/{id}/items"), "item")
+    };
+    let resp = sp.api(Method::GET, &path, &[("limit", &limit), ("offset", &off)], None).await?;
+    if resp.status() == StatusCode::FORBIDDEN || resp.status() == StatusCode::NOT_FOUND {
+        return Err("Spotify only shares the song list of playlists you made. You can still play or shuffle it.".into());
+    }
+    let v: Value = Spotify::check(resp).await?.json().await.map_err(net_err)?;
+    let total = v["total"].as_u64().unwrap_or(0);
+    let tracks = v["items"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        // Feb 2026 renamed `track` to `item`; accept either.
+        .map(|e| if e[key].is_object() { e[key].clone() } else { e["track"].clone() })
+        .filter(|t| t["uri"].as_str().is_some_and(|u| u.starts_with("spotify:track:")))
+        .map(|t| Item {
+            kind: "track",
+            uri: t["uri"].as_str().unwrap_or_default().into(),
+            name: t["name"].as_str().unwrap_or_default().into(),
+            subtitle: artist_names(&t),
+            image: smallest_image(&t["album"]["images"]),
+            owned: false,
+        })
+        .collect();
+    let next = (offset + PAGE < total).then_some(offset + PAGE);
+    Ok(TrackPage { tracks, total, next })
 }
 
 #[tauri::command]
@@ -640,13 +743,15 @@ pub async fn spotify_transfer(sp: State<'_, Spotify>, device_id: String) -> Res<
 #[tauri::command]
 pub async fn spotify_playlists(sp: State<'_, Spotify>) -> Res<Vec<Item>> {
     let mut out = Vec::new();
-    if let Ok(id) = sp.user_id().await {
+    let me = sp.user_id().await.ok();
+    if let Some(id) = &me {
         out.push(Item {
             kind: "liked",
             uri: format!("spotify:user:{id}:collection"),
             name: "Liked Songs".into(),
             subtitle: "Your liked songs".into(),
             image: None,
+            owned: true,
         });
     }
     let resp = Spotify::check(sp.api(Method::GET, "/me/playlists", &[("limit", "50")], None).await?).await?;
@@ -664,6 +769,7 @@ pub async fn spotify_playlists(sp: State<'_, Spotify>) -> Res<Vec<Item>> {
                 None => owner.to_string(),
             },
             image: smallest_image(&p["images"]),
+            owned: me.is_some() && p["owner"]["id"].as_str() == me.as_deref(),
         });
     }
     out.retain(|i| !i.uri.is_empty());

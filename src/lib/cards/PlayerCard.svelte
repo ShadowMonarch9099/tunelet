@@ -111,7 +111,22 @@
     <button aria-label="Next" onclick={() => app.media("next")}>
       <svg viewBox="0 0 24 24"><path d={icon.next} /></svg>
     </button>
-    <span class="side"></span>
+    <button
+      class="side shuffle"
+      class:on={app.shuffle || app.smartShuffle}
+      aria-label="Shuffle"
+      aria-pressed={app.shuffle || app.smartShuffle}
+      title={app.smartShuffle
+        ? "Smart Shuffle is on. Click to turn shuffle off"
+        : app.shuffle
+          ? "Shuffle is on. Click to turn it off"
+          : "Shuffle"}
+      disabled={!app.auth?.loggedIn}
+      onclick={() => app.toggleShuffle()}
+    >
+      <svg viewBox="0 0 24 24"><path d={icon.shuffle} /></svg>
+      {#if app.smartShuffle}<span class="sparkle" aria-hidden="true">✦</span>{/if}
+    </button>
   </div>
 
   {#if app.auth?.loggedIn}
@@ -237,6 +252,22 @@
   .transport .big svg { width: 24px; height: 24px; }
   .side { width: 36px; }
   .like.liked { color: #1ed760; }
+  .shuffle { position: relative; }
+  .shuffle svg { width: 18px; height: 18px; }
+  .shuffle.on { color: #1ed760; }
+  /* Small dot under an active toggle, like Spotify's own. */
+  .shuffle.on::after {
+    content: "";
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    margin-left: -2px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .sparkle { position: absolute; top: 3px; right: 3px; font-size: 9px; line-height: 1; }
   .like.liked svg { animation: pop 350ms ease; }
   @keyframes pop { 50% { transform: scale(1.35); } }
 

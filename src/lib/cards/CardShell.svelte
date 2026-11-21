@@ -10,6 +10,7 @@
     origin,
     onswitch,
     onclose,
+    ondrag,
     children,
   }: {
     card: Card;
@@ -18,6 +19,8 @@
     origin: string;
     onswitch: (c: Card) => void;
     onclose: () => void;
+    /** Drag the whole widget by the card's header. */
+    ondrag: () => void;
     children: Snippet;
   } = $props();
 
@@ -36,7 +39,13 @@
 </script>
 
 <section class="card" class:shown style="transform-origin: {origin}">
-  <header>
+  <header
+    role="presentation"
+    onpointerdown={(e) => {
+      // The header's empty space and title are a drag handle; its buttons aren't.
+      if (e.button === 0 && !(e.target as HTMLElement).closest("button")) ondrag();
+    }}
+  >
     <h2>
       {#key card}<span class="title-anim">{TITLE[card]}</span>{/key}
     </h2>
@@ -98,6 +107,7 @@
   }
 
   header {
+    cursor: grab;
     display: flex;
     align-items: center;
     justify-content: space-between;

@@ -24,11 +24,11 @@
   const CARD_H = 428;
   const R_FULL = 78; // radius of the option ring
   const R_CAPSULE = 82; // the wider playback capsule sits a touch further out
-  const R_ARC = 90; // radius when fanned out in an arc near a screen edge
+  const R_ARC = 108; // radius when fanned out in an arc near a screen edge
   // Angle gaps between options (degrees). The capsule is wide, so the
   // options next to it get a bigger gap.
   const RING_STEPS = [68, 56, 56, 56, 56]; // full ring, from the capsule at the top
-  const ARC_STEPS = [54, 42, 42, 42, 42]; // arc near an edge
+  const ARC_STEPS = [44, 34, 34, 34, 34]; // arc near an edge: a half circle facing the middle of the screen, so nothing ends up off-screen
   const STORE_KEY = "tunelet.bob-center";
 
   const win = getCurrentWindow();
@@ -101,8 +101,22 @@
     return ids.map((id, i) => {
       const R = id === "playback" ? (roomy ? R_CAPSULE : R_ARC + 4) : roomy ? R_FULL : R_ARC;
       const t = (angles[i] * Math.PI) / 180;
-      return { id, dx: Math.round(R * Math.cos(t)), dy: Math.round(R * Math.sin(t)) };
+      // Nudge an option back inside the screen if it would stick out of it.
+      const hw = id === "playback" ? 58 : 24;
+      const x = clamp(center.x + R * Math.cos(t), a.x + hw, a.x + a.width - hw);
+      const y = clamp(center.y + R * Math.sin(t), a.y + 24, a.y + a.height - 24);
+      return { id, dx: Math.round(x - center.x), dy: Math.round(y - center.y) };
     });
+  }
+
+  const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+
+  /** Keeps the whole bob on screen. */
+  function clampCenter(p: { x: number; y: number }, a: Area) {
+    return {
+      x: clamp(p.x, a.x + BOB_HALF, a.x + a.width - BOB_HALF),
+      y: clamp(p.y, a.y + BOB_HALF, a.y + a.height - BOB_HALF),
+    };
   }
 
   async function applyBounds(r: Rect) {
@@ -202,6 +216,33 @@
     });
   }
 
+  /**
+   * Moves the whole widget (bob plus any open menu or card) with the mouse.
+   * When the drag ends, re-anchors on the bob's new spot and re-lays out the
+   * menu/card so it opens toward the free side of the screen again.
+   */
+  let dragging = false;
+  async function dragWindow() {
+    if (dragging) return;
+    dragging = true;
+    try {
+      await win.startDragging();
+      // Windows runs the drag itself; wait for the button to come up.
+      const until = Date.now() + 60_000;
+      while (Date.now() < until && (await invoke<boolean>("mouse_down"))) await wait(60);
+      const pos = (await win.outerPosition()).toLogical(await win.scaleFactor());
+      // Dropped partly off screen? Snap the bob back fully onto it.
+      const dropped = { x: pos.x + bobAt.x, y: pos.y + bobAt.y };
+      center = clampCenter(dropped, await screenArea());
+      saveCenter();
+      if (mode === "radial") serial(layoutRadial);
+      else if (mode === "card") serial(layoutCard);
+      else if (center.x !== dropped.x || center.y !== dropped.y) serial(layoutBob);
+    } finally {
+      dragging = false;
+    }
+  }
+
   function toggleMenu() {
     if (mode === "bob") openRadial();
     else closeAll();
@@ -229,7 +270,7 @@
       listen("open-settings", () => openCard("settings")),
       win.onMoved(async ({ payload }) => {
         // Only user drags in bob mode move the anchor; our own resizes don't.
-        if (mode !== "bob" || Date.now() < ignoreMovesUntil) return;
+        if (mode !== "bob" || dragging || Date.now() < ignoreMovesUntil) return;
         const p = payload.toLogical(await win.scaleFactor());
         center = { x: p.x + BOB_HALF, y: p.y + BOB_HALF };
         saveCenter();
@@ -278,10 +319,7 @@
       saved = { x: p.x + BOB_HALF, y: p.y + BOB_HALF };
     }
     // Keep it on screen (e.g. after unplugging a monitor).
-    center = {
-      x: Math.min(Math.max(saved.x, a.x + BOB_HALF), a.x + a.width - BOB_HALF),
-      y: Math.min(Math.max(saved.y, a.y + BOB_HALF), a.y + a.height - BOB_HALF),
-    };
+    center = clampCenter(saved, a);
   }
 
   // When the song changes, ask Spotify whether it's liked.
@@ -320,13 +358,13 @@
 
 <div
   class="stage"
-  style="--c1: {app.colors[0]}; --c2: {app.colors[1]}"
+  style="--c1: {app.colors[0]}; --c2: {app.colors[1]}; opacity: {app.opacity}"
   role="presentation"
   onpointerdown={onStageDown}
 >
   {#if mode === "card"}
     <div class="card-pos" style="left: {cardAt.x}px; top: {cardAt.y}px">
-      <CardShell {card} shown={cardShown} origin={cardAt.origin} onswitch={(c) => openCard(c)} onclose={closeAll}>
+      <CardShell {card} shown={cardShown} origin={cardAt.origin} onswitch={(c) => openCard(c)} onclose={closeAll} ondrag={dragWindow}>
         {#if card === "search" || card === "playlists"}
           <SearchCard tab={card} onswitch={(t) => openCard(t)} />
         {:else if card === "player"}
@@ -342,9 +380,8 @@
     {#if mode === "radial"}
       <Radial {spots} shown={radialShown} onpick={pick} />
     {/if}
-    <!-- The opacity setting only fades the resting bubble; cards and the menu stay solid so they're readable. -->
-    <div class="bob-pos" style="opacity: {app.opacity}">
-      <Bob bind:this={bobRef} open={mode !== "bob"} draggable={mode === "bob"} onmenu={toggleMenu} />
+    <div class="bob-pos">
+      <Bob bind:this={bobRef} open={mode !== "bob"} onmenu={toggleMenu} ondrag={dragWindow} />
     </div>
   </div>
 

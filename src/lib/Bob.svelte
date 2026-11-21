@@ -2,15 +2,14 @@
   // The round widget: album art (spins like a vinyl while playing), a glow in
   // the album's colors, and a progress ring. Left-click opens the menu,
   // right-click plays/pauses, dragging moves the widget.
-  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { app } from "./app.svelte";
   import { icon } from "./icons";
 
   let {
     open = false,
-    draggable = true,
     onmenu,
-  }: { open?: boolean; draggable?: boolean; onmenu: () => void } = $props();
+    ondrag,
+  }: { open?: boolean; onmenu: () => void; ondrag: () => void } = $props();
 
   const SIZE = 52;
   const RING_R = 30;
@@ -39,11 +38,11 @@
   }
 
   function onpointermove(e: PointerEvent) {
-    if (!down || !draggable) return;
+    if (!down) return;
     if (Math.hypot(e.screenX - down.x, e.screenY - down.y) > 5) {
       down = null;
       pressed = false;
-      getCurrentWindow().startDragging();
+      ondrag();
     }
   }
 
