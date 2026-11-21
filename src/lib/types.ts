@@ -55,4 +55,10 @@ export type UpdateState =
   | { state: "error"; msg: string };
 
 /** Which card is open next to the bob. */
-export type Card = "search" | "playlists" | "player" | "settings";
+export type Card = "search" | "playlists" | "player" | "lyrics" | "settings";
+
+export type Lyrics = {
+  synced: { ms: number; text: string }[] | null;
+  plain: string | null;
+  instrumental: boolean;
+};

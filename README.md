@@ -12,12 +12,13 @@ A tiny, always-on-top Spotify mini-player for Windows: a round bubble with the a
 - **Doesn't get in your way** — clicking it keeps focus in your current app; hidden from the taskbar and Alt+Tab
 - **No need to open Spotify** — press play and Tunelet starts the Spotify app minimized to the tray, then plays (turn off in Settings)
 - **Search anything** — play or queue songs, albums and playlists from a card that opens beside the bubble
-- **Your playlists** — Liked Songs and all your playlists, one keypress away
+- **Your playlists** — Liked Songs and all your playlists, one keypress away; open one to see its songs and play from any of them
 - **Like songs** — heart button or `Ctrl+Alt+L` from any app
-- **Now playing** — seek, Spotify volume, and move playback to your phone or speakers
+- **Now playing** — seek, shuffle, Spotify volume, and move playback to your phone or speakers
+- **Lyrics** — synced lyrics that follow the song (click a line to jump there), from [LRCLIB](https://lrclib.net)
 - **Global hotkeys** — work from any app, and you can change them
 - **Settings** — hotkeys, opacity, start with Windows
-- **Updates itself** — new versions install from inside the app
+- **Updates itself** — new versions download in the background and install from inside the app
 - **Tray icon** — show/hide, search, settings, quit
 
 ## Install

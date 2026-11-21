@@ -12,7 +12,7 @@ import type {
   SettingsView,
   Timeline,
   UpdateState,
- TrackPage } from "./types";
+ TrackPage, Lyrics } from "./types";
 
 const IDLE: [string, string] = ["#3a2a5c", "#12324a"];
 
@@ -77,6 +77,44 @@ class App {
     loading: boolean;
     error: string;
   } | null>(null);
+
+  // ---- lyrics ------------------------------------------------------------------
+  lyrics = $state<{ key: string; loading: boolean; data: Lyrics | null; error: string }>({
+    key: "",
+    loading: false,
+    data: null,
+    error: "",
+  });
+  #lyricsCache = new Map<string, Lyrics>();
+
+  /** Loads lyrics for the current song (cached per song). */
+  async loadLyrics() {
+    const np = this.np;
+    if (!np?.available || !np.title) {
+      this.lyrics = { key: "", loading: false, data: null, error: "" };
+      return;
+    }
+    const key = `${np.title}\u0001${np.artist}`;
+    if (this.lyrics.key === key && (this.lyrics.loading || this.lyrics.data)) return;
+    const cached = this.#lyricsCache.get(key);
+    if (cached) {
+      this.lyrics = { key, loading: false, data: cached, error: "" };
+      return;
+    }
+    this.lyrics = { key, loading: true, data: null, error: "" };
+    try {
+      const data = await invoke<Lyrics>("lyrics", {
+        title: np.title,
+        artist: np.artist,
+        album: np.album,
+        durationMs: Math.round(this.durationMs),
+      });
+      this.#lyricsCache.set(key, data);
+      if (this.lyrics.key === key) this.lyrics = { key, loading: false, data, error: "" };
+    } catch (e) {
+      if (this.lyrics.key === key) this.lyrics = { key, loading: false, data: null, error: String(e) };
+    }
+  }
 
   // ---- shuffle -----------------------------------------------------------------
   shuffle = $derived(this.player?.shuffle ?? false);

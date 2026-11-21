@@ -202,26 +202,79 @@ pub fn set_autostart(app: AppHandle, enabled: bool) -> Result<bool, String> {
 
 // ---- updates ----------------------------------------------------------------
 
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Update, UpdaterExt};
 
-/// Returns the newer version number if an update is available.
-#[tauri::command]
-pub async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
-    let update = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
-    Ok(update.map(|u| u.version))
+/// Some networks can't reach some of GitHub's download servers: a connection
+/// to one of those hangs ~21s before the next address is tried, so checking
+/// and downloading took ages. A short connect timeout (split across a host's
+/// addresses) skips a dead server in about two seconds instead.
+pub const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(12);
+
+fn updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
+    app.updater_builder()
+        .configure_client(|b| b.connect_timeout(CONNECT_TIMEOUT))
+        .build()
+        .map_err(|e| e.to_string())
 }
 
-/// Downloads and installs the update, then restarts Tunelet.
+/// Checks for an update, trying once more if the first attempt fails (a
+/// request can still land on unreachable servers every time by bad luck).
+async fn check(app: &AppHandle) -> Result<Option<Update>, String> {
+    match updater(app)?.check().await {
+        Ok(u) => Ok(u),
+        Err(_) => updater(app)?.check().await.map_err(|e| e.to_string()),
+    }
+}
+
+/// An update downloaded in the background, ready to install instantly.
+#[derive(Default)]
+pub struct PendingUpdate(tauri::async_runtime::Mutex<Option<(String, Vec<u8>)>>);
+
+/// Checks for a newer version. If there is one, starts downloading it in the
+/// background so "Update" can install it right away.
+#[tauri::command]
+pub async fn check_update(app: AppHandle) -> Result<Option<String>, String> {
+    let Some(update) = check(&app).await? else { return Ok(None) };
+    let version = update.version.clone();
+    let app2 = app.clone();
+    tauri::async_runtime::spawn(async move { predownload(&app2, update).await });
+    Ok(Some(version))
+}
+
+async fn predownload(app: &AppHandle, update: Update) {
+    let pending = app.state::<PendingUpdate>();
+    if pending.0.lock().await.as_ref().is_some_and(|(v, _)| *v == update.version) {
+        return; // already have it
+    }
+    for _ in 0..2 {
+        if let Ok(bytes) = update.download(|_, _| {}, || {}).await {
+            *pending.0.lock().await = Some((update.version.clone(), bytes));
+            return;
+        }
+    }
+}
+
+/// Installs the update (using the background download when it's ready),
+/// then restarts Tunelet.
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
-    let updater = app.updater().map_err(|e| e.to_string())?;
-    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
+    let Some(update) = check(&app).await? else {
         return Err("Already up to date.".into());
     };
-    update
-        .download_and_install(|_, _| {}, || {})
+    let ready = app
+        .state::<PendingUpdate>()
+        .0
+        .lock()
         .await
-        .map_err(|e| format!("Update failed: {e}"))?;
+        .take()
+        .filter(|(v, _)| *v == update.version);
+    match ready {
+        Some((_, bytes)) => update.install(bytes).map_err(|e| format!("Update failed: {e}"))?,
+        None => update
+            .download_and_install(|_, _| {}, || {})
+            .await
+            .map_err(|e| format!("Update failed: {e}"))?,
+    }
     app.restart();
 }
 

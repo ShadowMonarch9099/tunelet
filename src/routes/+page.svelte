@@ -11,6 +11,7 @@
   import SearchCard from "$lib/cards/SearchCard.svelte";
   import PlayerCard from "$lib/cards/PlayerCard.svelte";
   import SettingsCard from "$lib/cards/SettingsCard.svelte";
+  import LyricsCard from "$lib/cards/LyricsCard.svelte";
   import type { Card, NowPlaying, Timeline } from "$lib/types";
 
   type Mode = "bob" | "radial" | "card";
@@ -27,8 +28,8 @@
   const R_ARC = 108; // radius when fanned out in an arc near a screen edge
   // Angle gaps between options (degrees). The capsule is wide, so the
   // options next to it get a bigger gap.
-  const RING_STEPS = [68, 56, 56, 56, 56]; // full ring, from the capsule at the top
-  const ARC_STEPS = [44, 34, 34, 34, 34]; // arc near an edge: a half circle facing the middle of the screen, so nothing ends up off-screen
+  const RING_STEPS = [62, 48, 48, 48, 48, 48]; // full ring, from the capsule at the top
+  const ARC_STEPS = [44, 27, 27, 27, 27, 27]; // arc near an edge: a half circle facing the middle of the screen, so nothing ends up off-screen
   const STORE_KEY = "tunelet.bob-center";
 
   const win = getCurrentWindow();
@@ -82,7 +83,7 @@
   const bobRect = (): Rect => ({ x: center.x - BOB_HALF, y: center.y - BOB_HALF, w: BOB_HALF * 2, h: BOB_HALF * 2 });
 
   function computeSpots(a: Area): RadialSpot[] {
-    const ids: RadialId[] = ["playback", "like", "search", "playlists", "player", "settings"];
+    const ids: RadialId[] = ["playback", "like", "search", "playlists", "player", "lyrics", "settings"];
     const need = R_CAPSULE + 70;
     const roomy =
       center.x - a.x >= need &&
@@ -264,6 +265,8 @@
       // Dev-only peek at the layout state, for debugging through the web view's devtools.
       (window as any).__tunelet = {
         state: () => ({ mode, card, dragging, radialShown, cardShown, center, bobAt, focused: document.hasFocus(), vis: document.visibilityState }),
+        open: (c: Card) => openCard(c),
+        app,
         queueIdle: () => Promise.race([queue.then(() => "idle"), wait(500).then(() => "busy")]),
       };
     }
@@ -378,6 +381,8 @@
       <CardShell {card} shown={cardShown} origin={cardAt.origin} onswitch={(c) => openCard(c)} onclose={closeAll} ondrag={dragWindow}>
         {#if card === "search" || card === "playlists"}
           <SearchCard tab={card} onswitch={(t) => openCard(t)} />
+        {:else if card === "lyrics"}
+          <LyricsCard />
         {:else if card === "player"}
           <PlayerCard />
         {:else}

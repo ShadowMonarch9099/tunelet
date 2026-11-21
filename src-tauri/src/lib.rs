@@ -7,6 +7,7 @@ use tauri_plugin_global_shortcut::ShortcutState;
 
 mod colors;
 mod launcher;
+mod lyrics;
 mod media;
 mod settings;
 mod spotify;
@@ -326,6 +327,7 @@ pub fn run() {
         .setup(|app| {
             app.manage(media::start(app.handle().clone()));
             app.manage(spotify::Spotify::new());
+            app.manage(settings::PendingUpdate::default());
             settings::init(app.handle());
 
             if let Some(w) = main_window(app.handle()) {
@@ -378,6 +380,7 @@ pub fn run() {
             spotify::spotify_search,
             spotify::spotify_play,
             spotify::spotify_shuffle,
+            lyrics::lyrics,
             spotify::spotify_playlist_tracks,
             spotify::spotify_queue,
             spotify::spotify_player,

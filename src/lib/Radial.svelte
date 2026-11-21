@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  export type RadialId = "playback" | "like" | "search" | "playlists" | "player" | "settings";
+  export type RadialId = "playback" | "like" | "search" | "playlists" | "player" | "lyrics" | "settings";
   export type RadialSpot = { id: RadialId; dx: number; dy: number };
 </script>
 
@@ -28,6 +28,7 @@
     search: "Search",
     playlists: "Playlists",
     player: "Now playing",
+    lyrics: "Lyrics",
     settings: "Settings",
   };
   const ICON: Record<Exclude<RadialId, "playback">, string> = {
@@ -35,6 +36,7 @@
     search: icon.search,
     playlists: icon.playlist,
     player: icon.nowPlaying,
+    lyrics: icon.lyrics,
     settings: icon.settings,
   };
 

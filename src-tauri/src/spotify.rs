@@ -114,7 +114,10 @@ impl Spotify {
     pub fn new() -> Self {
         let saved = load_saved();
         Self {
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .connect_timeout(crate::settings::CONNECT_TIMEOUT)
+                .build()
+                .unwrap_or_default(),
             inner: Mutex::new(Inner {
                 client_id: saved.as_ref().map(|s| s.client_id.clone()),
                 refresh: saved.and_then(|s| s.refresh_token),

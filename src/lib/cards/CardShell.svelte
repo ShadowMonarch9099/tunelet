@@ -28,12 +28,14 @@
     { id: "search", label: "Search", path: icon.search },
     { id: "playlists", label: "Playlists", path: icon.playlist },
     { id: "player", label: "Now playing", path: icon.nowPlaying },
+    { id: "lyrics", label: "Lyrics", path: icon.lyrics },
     { id: "settings", label: "Settings", path: icon.settings },
   ];
   const TITLE: Record<Card, string> = {
     search: "Search",
     playlists: "Your playlists",
     player: "Now playing",
+    lyrics: "Lyrics",
     settings: "Settings",
   };
 </script>
