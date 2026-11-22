@@ -37,6 +37,8 @@ pub struct Settings {
     /// Start the Spotify app (minimized to the tray) when you press play
     /// and it isn't running.
     pub launch_spotify: bool,
+    /// When started at login, stay hidden until the show/hide hotkey.
+    pub start_hidden: bool,
 }
 
 impl Default for Settings {
@@ -45,6 +47,7 @@ impl Default for Settings {
             hotkeys: DEFAULT_HOTKEYS.iter().map(|(a, k)| (*a, k.to_string())).collect(),
             opacity: 1.0,
             launch_spotify: true,
+            start_hidden: false,
         }
     }
 }
@@ -57,6 +60,10 @@ pub struct SettingsState {
 }
 
 impl SettingsState {
+    pub fn start_hidden(&self) -> bool {
+        self.settings.lock().map(|s| s.start_hidden).unwrap_or(false)
+    }
+
     pub fn launch_spotify(&self) -> bool {
         self.settings.lock().map(|s| s.launch_spotify).unwrap_or(true)
     }
@@ -148,7 +155,17 @@ pub fn init(app: &AppHandle) {
     let s = load(app);
     app.manage(SettingsState { settings: Mutex::new(s.clone()), ..Default::default() });
     apply_hotkeys(app, &s);
+    // Re-save the start-at-login entry so it carries the current launch
+    // arguments (older versions saved it without `--autostart`).
+    // (Release builds only, so a dev build never repoints it at itself.)
+    let al = app.autolaunch();
+    if !cfg!(debug_assertions) && al.is_enabled().unwrap_or(false) {
+        let _ = al.enable();
+    }
 }
+
+/// Command-line flag the start-at-login entry launches Tunelet with.
+pub const AUTOSTART_ARG: &str = "--autostart";
 
 fn view(app: &AppHandle, s: Settings, hotkey_errors: Vec<HotkeyError>) -> SettingsView {
     SettingsView {

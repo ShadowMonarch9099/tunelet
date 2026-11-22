@@ -119,6 +119,23 @@
       <span>{IS_MAC ? "Open at login" : "Start with Windows"}</span>
       <input type="checkbox" class="switch" checked={sv.autostart} onchange={(e) => app.toggleAutostart(e.currentTarget.checked)} />
     </label>
+    <label
+      class="row sub-row"
+      class:off={!sv.autostart}
+      title="Tunelet loads in the background when you log in. Press your show/hide shortcut to bring it up."
+    >
+      <span>Start hidden <span class="muted small-text">(show with {app.hk("toggle")})</span></span>
+      <input
+        type="checkbox"
+        class="switch"
+        checked={sv.settings.startHidden}
+        disabled={!sv.autostart}
+        onchange={(e) => {
+          sv.settings.startHidden = e.currentTarget.checked;
+          app.saveSettings();
+        }}
+      />
+    </label>
     <label class="row" title="When Spotify isn't running, pressing play starts it minimized to the tray, so you never have to open it.">
       <span>Start Spotify when needed</span>
       <input
@@ -195,5 +212,7 @@
   .slider { display: flex; align-items: center; gap: 8px; }
   .slider .range { width: 120px; }
   .small-text { font-size: 11px; }
+  .sub-row { padding-left: 12px; }
+  .sub-row.off { opacity: 0.45; }
   .gh { margin-top: 10px; }
 </style>

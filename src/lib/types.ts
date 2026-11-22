@@ -45,7 +45,7 @@ export type PlayerState = {
 };
 
 export type Action = "toggle" | "search" | "playPause" | "next" | "previous" | "like";
-export type Settings = { hotkeys: Record<Action, string>; opacity: number; launchSpotify: boolean };
+export type Settings = { hotkeys: Record<Action, string>; opacity: number; launchSpotify: boolean; startHidden: boolean };
 export type HotkeyError = { action: Action; combo: string; reason: "taken" | "invalid" | "duplicate" };
 export type SettingsView = { settings: Settings; autostart: boolean; version: string; hotkeyErrors: HotkeyError[] };
 

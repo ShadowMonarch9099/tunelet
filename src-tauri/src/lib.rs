@@ -338,7 +338,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            None,
+            Some(vec![settings::AUTOSTART_ARG]),
         ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
@@ -373,6 +373,14 @@ pub fn run() {
                 native::set_interactive(&w, false);
                 #[cfg(target_os = "macos")]
                 let _ = w.set_visible_on_all_workspaces(true);
+            }
+
+            // The window starts invisible. Show it, unless this is a start at
+            // login with "Start hidden" on: then it waits for the show/hide
+            // hotkey (or the tray icon, or opening Tunelet again).
+            let at_login = std::env::args().any(|a| a == settings::AUTOSTART_ARG);
+            if !(at_login && app.state::<SettingsState>().start_hidden()) {
+                show_widget(app.handle());
             }
 
             let toggle = MenuItem::with_id(app, "toggle", "Show / Hide", true, None::<&str>)?;
