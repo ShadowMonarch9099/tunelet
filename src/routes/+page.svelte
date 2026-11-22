@@ -25,11 +25,13 @@
   const CARD_H = 428;
   const R_FULL = 78; // radius of the option ring
   const R_CAPSULE = 82; // the wider playback capsule sits a touch further out
-  const R_ARC = 108; // radius when fanned out in an arc near a screen edge
+  // Near an edge or corner the options fill rings around the bob, inner ring
+  // first, so they never overlap or leave the screen (they stack outward).
+  const EDGE_RINGS = [108, 170, 232];
+  const OPTION_GAP = 8; // min space between options
   // Angle gaps between options (degrees). The capsule is wide, so the
   // options next to it get a bigger gap.
   const RING_STEPS = [62, 48, 48, 48, 48, 48]; // full ring, from the capsule at the top
-  const ARC_STEPS = [44, 27, 27, 27, 27, 27]; // arc near an edge: a half circle facing the middle of the screen, so nothing ends up off-screen
   const STORE_KEY = "tunelet.bob-center";
 
   const win = getCurrentWindow();
@@ -91,24 +93,84 @@
       a.x + a.width - center.x >= need &&
       center.y - a.y >= need &&
       a.y + a.height - center.y >= need;
+    if (!roomy) return spotsNearEdge(a, ids);
 
-    const steps = roomy ? RING_STEPS : ARC_STEPS;
-    const span = steps.reduce((s, v) => s + v, 0);
-    // Full ring: capsule at the top, others clockwise. Near an edge: an arc
-    // that faces the middle of the screen.
-    const toward = (Math.atan2(a.y + a.height / 2 - center.y, a.x + a.width / 2 - center.x) * 180) / Math.PI;
-    let angle = roomy ? -90 : toward - span / 2;
-    const angles = [angle, ...steps.map((s) => (angle += s))];
-
+    // Full ring: capsule at the top, others clockwise.
+    let angle = -90;
+    const angles = [angle, ...RING_STEPS.map((s) => (angle += s))];
     return ids.map((id, i) => {
-      const R = id === "playback" ? (roomy ? R_CAPSULE : R_ARC + 4) : roomy ? R_FULL : R_ARC;
+      const R = id === "playback" ? R_CAPSULE : R_FULL;
       const t = (angles[i] * Math.PI) / 180;
-      // Nudge an option back inside the screen if it would stick out of it.
-      const hw = id === "playback" ? 58 : 24;
-      const x = clamp(center.x + R * Math.cos(t), a.x + hw, a.x + a.width - hw);
-      const y = clamp(center.y + R * Math.sin(t), a.y + 24, a.y + a.height - 24);
-      return { id, dx: Math.round(x - center.x), dy: Math.round(y - center.y) };
+      return { id, dx: Math.round(R * Math.cos(t)), dy: Math.round(R * Math.sin(t)) };
     });
+  }
+
+  /**
+   * Near an edge or in a corner. The play capsule sits straight above the bob
+   * (below if there's no room above), nudged sideways to stay on screen. The
+   * other options fill rings around the bob in order, evenly spaced across the
+   * part of each ring that's free (on screen, clear of the bob and capsule);
+   * whatever doesn't fit goes on the next ring out. Nothing overlaps.
+   */
+  function spotsNearEdge(a: Area, ids: RadialId[]): RadialSpot[] {
+    const R_BUBBLE = 22;
+    const CAP = { w: 57, h: 22 };
+    const deg = (d: number) => (d * Math.PI) / 180;
+    const inside = (x: number, y: number, w: number, h: number) =>
+      x - w >= a.x + 4 && x + w <= a.x + a.width - 4 && y - h >= a.y + 4 && y + h <= a.y + a.height - 4;
+    const clear = (x: number, y: number, w: number, h: number, o: { x: number; y: number; w: number; h: number }) =>
+      Math.abs(o.x - x) >= o.w + w + OPTION_GAP || Math.abs(o.y - y) >= o.h + h + OPTION_GAP;
+
+    // Capsule: above, else below, nudged horizontally onto the screen.
+    const capX = clamp(center.x, a.x + CAP.w + 4, a.x + a.width - CAP.w - 4);
+    const above = center.y - R_CAPSULE;
+    const capY = above - CAP.h >= a.y + 4 ? above : center.y + R_CAPSULE;
+    const capsule = { x: capX, y: capY, w: CAP.w, h: CAP.h };
+    const bob = { x: center.x, y: center.y, w: BOB_VISUAL_HALF, h: BOB_VISUAL_HALF };
+    const spots: RadialSpot[] = [{ id: "playback", dx: Math.round(capX - center.x), dy: Math.round(capY - center.y) }];
+
+    // Bubbles, ring by ring, in a half circle facing the middle of the screen.
+    const toward = (Math.atan2(a.y + a.height / 2 - center.y, a.x + a.width / 2 - center.x) * 180) / Math.PI;
+    let rest = ids.filter((id) => id !== "playback");
+    for (const R of EDGE_RINGS) {
+      if (!rest.length) break;
+      const at = (d: number) => ({ x: center.x + R * Math.cos(deg(d)), y: center.y + R * Math.sin(deg(d)) });
+      const ok = (d: number) => {
+        const { x, y } = at(d);
+        return inside(x, y, R_BUBBLE, R_BUBBLE) && clear(x, y, R_BUBBLE, R_BUBBLE, bob) && clear(x, y, R_BUBBLE, R_BUBBLE, capsule);
+      };
+      // Longest run of free angles (1° steps) on this ring.
+      let best = { s: 0, e: -1 };
+      let runStart: number | null = null;
+      for (let d = toward - 120; d <= toward + 121; d++) {
+        if (d <= toward + 120 && ok(d)) {
+          runStart ??= d;
+        } else if (runStart !== null) {
+          if (d - 1 - runStart > best.e - best.s) best = { s: runStart, e: d - 1 };
+          runStart = null;
+        }
+      }
+      if (best.e < best.s) continue;
+      // Spacing: at least a bubble and a gap apart; comfortably apart when there's room.
+      const minStep = (2 * Math.asin((2 * R_BUBBLE + OPTION_GAP) / 2 / R) * 180) / Math.PI;
+      const niceStep = (2 * Math.asin(31 / R) * 180) / Math.PI;
+      const fit = Math.floor((best.e - best.s) / minStep) + 1;
+      const n = Math.min(fit, rest.length);
+      const step = n > 1 ? Math.min((best.e - best.s) / (n - 1), niceStep) : 0;
+      const first = (best.s + best.e) / 2 - (step * (n - 1)) / 2;
+      rest.slice(0, n).forEach((id, i) => {
+        const { x, y } = at(first + step * i);
+        spots.push({ id, dx: Math.round(x - center.x), dy: Math.round(y - center.y) });
+      });
+      rest = rest.slice(n);
+    }
+    // Out of rings (tiny screen): line the rest up toward the middle.
+    rest.forEach((id, i) => {
+      const R = EDGE_RINGS[EDGE_RINGS.length - 1] + 56 * (i + 1);
+      spots.push({ id, dx: Math.round(R * Math.cos(deg(toward))), dy: Math.round(R * Math.sin(deg(toward))) });
+    });
+    // Keep the original option order (the radial animates in this order).
+    return ids.map((id) => spots.find((sp) => sp.id === id)!);
   }
 
   const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
@@ -319,6 +381,13 @@
       (window as any).__tunelet = {
         state: () => ({ mode, card, dragging, radialShown, cardShown, center, bobAt, focused: document.hasFocus(), vis: document.visibilityState }),
         open: (c: Card) => openCard(c),
+        moveTo: async (x: number, y: number) => {
+          await closeAll();
+          center = clampCenter({ x, y }, await screenArea());
+          await serial(layoutBob);
+          return center;
+        },
+        radial: () => openRadial(),
         app,
         queueIdle: () => Promise.race([queue.then(() => "idle"), wait(500).then(() => "busy")]),
       };
