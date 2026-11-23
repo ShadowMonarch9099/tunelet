@@ -1,25 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Tunelet "Pulse" logo: the bubble's progress ring around an equalizer.
+       Every icon size is generated from this file: npx tauri icon src-tauri/icons/icon-source.svg -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#8b5cf6"/>
-      <stop offset="0.55" stop-color="#4f46e5"/>
-      <stop offset="1" stop-color="#0ea5a4"/>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.5" stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#F472B6"/>
     </linearGradient>
-    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#17122E"/>
+      <stop offset="1" stop-color="#0B0918"/>
     </linearGradient>
   </defs>
-  <rect x="48" y="48" width="928" height="928" rx="220" fill="url(#bg)"/>
-  <rect x="48" y="48" width="928" height="464" rx="220" fill="url(#shine)"/>
-  <!-- floating pill -->
-  <rect x="172" y="372" width="680" height="280" rx="140" fill="#fff" fill-opacity="0.95"/>
-  <!-- album square -->
-  <rect x="222" y="422" width="180" height="180" rx="44" fill="url(#bg)"/>
-  <!-- sound bars -->
-  <rect x="452" y="470" width="34" height="84" rx="17" fill="#4f46e5"/>
-  <rect x="510" y="440" width="34" height="144" rx="17" fill="#4f46e5"/>
-  <rect x="568" y="482" width="34" height="60" rx="17" fill="#4f46e5"/>
-  <!-- play -->
-  <path d="M666 448 L666 576 L770 512 Z" fill="#111" stroke="#111" stroke-width="18" stroke-linejoin="round"/>
+  <!-- background squircle -->
+  <rect x="40" y="40" width="944" height="944" rx="212" fill="url(#bg)"/>
+  <!-- ring track -->
+  <circle cx="512" cy="512" r="304" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="63"/>
+  <!-- progress arc (~80%), starting at the top -->
+  <circle cx="512" cy="512" r="304" fill="none" stroke="url(#ring)" stroke-width="63" stroke-linecap="round"
+          stroke-dasharray="1520 390" transform="rotate(-90 512 512)"/>
+  <!-- equalizer bars -->
+  <rect x="365" y="428" width="74" height="178" rx="37" fill="#FFFFFF"/>
+  <rect x="475" y="344" width="74" height="336" rx="37" fill="#FFFFFF"/>
+  <rect x="585" y="460" width="74" height="126" rx="37" fill="#FFFFFF"/>
 </svg>
