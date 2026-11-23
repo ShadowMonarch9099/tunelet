@@ -139,7 +139,7 @@
       <rect x="-3" y="-3" width="1446" height="816" rx="30" fill="url(#ring)" opacity="0.55" />
       <g clip-path="url(#footClip)">
         <rect width="1440" height="810" fill="#111" />
-        <image id="foot" x="0" y="0" width="1440" height="810" preserveAspectRatio="xMidYMid slice" href="" />
+        <image id="foot" x="-337.5" y="-191.25" width="2160" height="1215" preserveAspectRatio="none" href="" />
         <g id="footPlaceholder"><text x="720" y="420" text-anchor="middle" font-size="40" fill="#555">footage</text></g>
       </g>
     </g>
@@ -340,20 +340,24 @@ document.getElementById("miniBubble").innerHTML = `
 // Timeline. Everything is a pure function of time, so any frame can be
 // rendered exactly: seek(t).
 // ---------------------------------------------------------------------------
-const FPS = 30;
 const tl = gsap.timeline({ paused: true });
 const S = (sel) => document.querySelectorAll(sel);
 
+const FPS = 30;
 // Footage clips for the montage (filled in once recorded): [caption, folder, frames]
-const CLIPS = window.CLIPS || [
-  ["Never leaves your app", "focus", 0],
-  ["One click, everything", "menu", 0],
-  ["Search & play anything", "search", 0],
-  ["Colours match your music", "colors", 0],
-  ["Synced lyrics", "lyrics", 0],
-  ["One key to hide", "hide", 0],
+const CLIPS = [
+  ["Never leaves your app", "focus", 108],
+  ["One click, everything", "menu", 78],
+  ["Search & play anything", "search", 156],
+  ["Colours match your music", "colors", 102],
+  ["Synced lyrics", "lyrics", 96],
+  ["One key to hide", "hide", 102],
 ];
-const M_START = 20.5, CLIP_LEN = 2.75, M_END = M_START + CLIPS.length * CLIP_LEN;
+// Each clip plays for its own length; starts are relative to the montage start.
+const CLIP_DUR = CLIPS.map(([, , n]) => n / FPS);
+const CLIP_AT = CLIP_DUR.map((_, i) => CLIP_DUR.slice(0, i).reduce((a, b) => a + b, 0));
+const M_TOTAL = CLIP_DUR.reduce((a, b) => a + b, 0);
+const clipIndex = (rel) => CLIP_AT.findIndex((s, i) => rel >= s && rel < s + CLIP_DUR[i]);
 
 function mood(at, m, dur = 0.25) {
   ["smile", "flat", "frown", "ugh", "grin"].forEach((k) => tl.to(S(".m-" + k), { opacity: k === m ? 1 : 0, duration: dur }, at));
@@ -484,11 +488,11 @@ const mStart = REVEAL_END;
 tl.to("#montage", { opacity: 1, duration: 0.35 }, mStart - 0.2);
 tl.to("#reveal", { opacity: 0, duration: 0.3 }, mStart);
 CLIPS.forEach(([cap], i) => {
-  const at = mStart + i * CLIP_LEN;
+  const at = mStart + CLIP_AT[i];
   tl.fromTo("#footFrame", { scale: 0.96, opacity: 0.4, transformOrigin: "720px 405px" }, { scale: 1, opacity: 1, duration: 0.35, ease: "power2.out" }, at);
   tl.fromTo("#caption", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "power2.out" }, at + 0.1);
 });
-const M_DONE = mStart + CLIPS.length * CLIP_LEN;
+const M_DONE = mStart + M_TOTAL;
 
 // --- payoff: happy, all looks, with the bubble ---
 tl.to("#montage", { opacity: 0, duration: 0.35 }, M_DONE);
@@ -515,11 +519,11 @@ const DURATION = END + 3.2;
 const foot = document.getElementById("foot");
 let footSrc = "";
 function footageFor(time) {
-  const i = Math.floor((time - mStart) / CLIP_LEN);
-  if (time < mStart - 0.2 || i < 0 || i >= CLIPS.length) return "";
+  const i = time < mStart ? (time >= mStart - 0.2 ? 0 : -1) : clipIndex(time - mStart);
+  if (i < 0) return "";
   const [, dir, frames] = CLIPS[i];
   if (!frames) return "";
-  const f = Math.min(frames, Math.max(1, Math.floor((time - mStart - i * CLIP_LEN) * FPS) + 1));
+  const f = Math.min(frames, Math.max(1, Math.floor((time - mStart - CLIP_AT[i]) * FPS) + 1));
   return `footage/${dir}/${String(f).padStart(4, "0")}.jpg`;
 }
 
@@ -528,7 +532,7 @@ window.FPS = FPS;
 const capText = document.getElementById("capText");
 window.seek = async (time) => {
   tl.seek(Math.min(time, DURATION), false);
-  const ci = Math.floor((time - mStart) / CLIP_LEN);
+  const ci = time >= mStart ? clipIndex(time - mStart) : -1;
   capText.textContent = ci >= 0 && ci < CLIPS.length ? CLIPS[ci][0] : "";
   const src = footageFor(time);
   document.getElementById("footPlaceholder").style.display = src ? "none" : "";

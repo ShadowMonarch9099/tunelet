@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Tunelet stage</title>
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+  body { background: radial-gradient(1400px 900px at 25% 15%, #3B2A6E 0%, #1A1438 45%, #0B0918 100%); }
+  .menubar { position: absolute; inset: 0 0 auto 0; height: 38px; background: rgba(12, 10, 26, .55); backdrop-filter: blur(20px);
+             display: flex; align-items: center; gap: 26px; padding: 0 22px; color: #E2E8F0; font-size: 15px; }
+  .menubar .grow { flex: 1; }
+  .menubar b { font-weight: 600; }
+  .win { position: absolute; border-radius: 16px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.08); }
+  .title { height: 42px; display: flex; align-items: center; gap: 9px; padding: 0 16px; }
+  .title i { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
+  .title span { margin-left: 14px; font-size: 14px; color: #94A3B8; }
+  #editor { left: 70px; top: 90px; width: 1180px; height: 860px; background: #0F1222; }
+  #editor .title { background: #161A30; }
+  #editor .side { position: absolute; top: 42px; bottom: 0; left: 0; width: 220px; background: #12152A; padding: 22px; box-sizing: border-box; }
+  #editor .side div { height: 13px; border-radius: 7px; background: #262B4A; margin-bottom: 16px; }
+  #code { position: absolute; top: 42px; left: 220px; right: 0; bottom: 0; background: transparent; border: 0; outline: 0; resize: none;
+          color: #E2E8F0; font: 24px/1.8 "Cascadia Code", Consolas, monospace; padding: 28px 36px; caret-color: #22D3EE; }
+  #notes { left: 1290px; top: 120px; width: 560px; height: 380px; background: #F8F5FF; }
+  #notes .title { background: #EDE9FE; }
+  #notes .body { padding: 26px 30px; }
+  #notes .body div { height: 15px; border-radius: 8px; background: #DDD6FE; margin-bottom: 18px; }
+  #tunelet { position: absolute; border: 0; background: transparent; left: 0; top: 0; width: 96px; height: 96px; transition: opacity .18s ease; }
+  #keys { position: absolute; left: 50%; bottom: 250px; transform: translateX(-50%) translateY(20px); display: flex; gap: 14px; align-items: center; opacity: 0;
+          transition: opacity .2s ease, transform .2s ease; }
+  #keys.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .kc { min-width: 92px; height: 82px; padding: 0 22px; box-sizing: border-box; border-radius: 16px; background: #F8FAFC; color: #1E1838;
+        font-size: 34px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 8px 0 #CBD5E1, 0 20px 40px rgba(0,0,0,.4); }
+  .kc.down { transform: translateY(6px); box-shadow: 0 2px 0 #CBD5E1, 0 10px 20px rgba(0,0,0,.4); }
+  .plus { color: #E2E8F0; font-size: 40px; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="menubar"><b>●</b><b>Code</b><span>File</span><span>Edit</span><span>View</span><span>Go</span><span class="grow"></span><span>Wi-Fi</span><span>100%</span><span id="clock">9:41</span></div>
+
+  <div class="win" id="editor">
+    <div class="title"><i style="background:#F87171"></i><i style="background:#FBBF24"></i><i style="background:#34D399"></i><span>focus.ts — my-project</span></div>
+    <div class="side"><div style="width:70%"></div><div style="width:55%"></div><div style="width:82%;background:#4C1D95"></div><div style="width:60%"></div><div style="width:46%"></div><div style="width:72%"></div></div>
+    <textarea id="code" spellcheck="false">import { deepWork } from "./habits";
+
+export function focusMode(task: Task) {
+  // music on, distractions off
+  const session = deepWork(task, { minutes: 50 });
+</textarea>
+  </div>
+
+  <div class="win" id="notes">
+    <div class="title"><i style="background:#F87171"></i><i style="background:#FBBF24"></i><i style="background:#34D399"></i><span style="color:#6D28D9">Lecture notes</span></div>
+    <div class="body"><div style="width:55%;background:#A78BFA;height:20px"></div><div></div><div style="width:86%"></div><div style="width:72%"></div><div style="width:92%"></div><div style="width:48%;background:#C4B5FD"></div><div style="width:80%"></div></div>
+  </div>
+
+  <iframe id="tunelet" src="http://localhost:1420/" allowtransparency="true"></iframe>
+
+  <div id="keys"></div>
+
+<script>
+  const frame = document.getElementById("tunelet");
+  const code = document.getElementById("code");
+  window.addEventListener("message", (e) => {
+    const m = e.data;
+    if (!m || !m.tunelet) return;
+    if (m.type === "bounds") Object.assign(frame.style, { left: m.x + "px", top: m.y + "px", width: m.w + "px", height: m.h + "px" });
+    if (m.type === "interactive" && m.value && document.activeElement !== frame) frame.focus();
+    if (m.type === "refocus") setTimeout(() => code.focus(), 0);
+    if (m.type === "hide") frame.style.opacity = "0";
+  });
+  // Global hotkey visual: keycaps that press down.
+  window.showKeys = async (keys) => {
+    const box = document.getElementById("keys");
+    box.innerHTML = keys.map((k, i) => (i ? '<span class="plus">+</span>' : "") + `<div class="kc">${k}</div>`).join("");
+    box.classList.add("on");
+    await new Promise((r) => setTimeout(r, 250));
+    box.querySelectorAll(".kc").forEach((k) => k.classList.add("down"));
+    await new Promise((r) => setTimeout(r, 180));
+    box.querySelectorAll(".kc").forEach((k) => k.classList.remove("down"));
+  };
+  window.hideKeys = () => document.getElementById("keys").classList.remove("on");
+  window.toggleWidget = () => { frame.style.opacity = frame.style.opacity === "0" ? "1" : "0"; };
+  window.focusCode = () => { code.focus(); code.selectionStart = code.selectionEnd = code.value.length; };
+</script>
+</body>
+</html>
