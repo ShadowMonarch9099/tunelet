@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Backdrop</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradient(1200px 800px at 30% 20%, #2A1F4E, #0E0B1F 70%); font-family: "Segoe UI", system-ui, sans-serif; }
+  .win { position: absolute; left: 6%; top: 8%; width: 60%; height: 78%; background: #0F1222; border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.55); overflow: hidden; border: 1px solid rgba(255,255,255,.07); }
+  .bar { height: 44px; background: #171A30; display: flex; align-items: center; gap: 10px; padding: 0 18px; }
+  .dot { width: 13px; height: 13px; border-radius: 50%; }
+  .tab { margin-left: 20px; color: #CBD5E1; font-size: 14px; background: #0F1222; padding: 8px 16px; border-radius: 10px 10px 0 0; align-self: flex-end; }
+  .side { position: absolute; top: 44px; left: 0; bottom: 0; width: 180px; background: #13162B; padding: 18px; box-sizing: border-box; }
+  .side div { height: 12px; border-radius: 6px; background: #2B3050; margin-bottom: 14px; }
+  textarea { position: absolute; top: 44px; left: 180px; right: 0; bottom: 0; background: transparent; color: #E2E8F0; border: 0; outline: 0; resize: none;
+             font: 22px/1.75 "Cascadia Code", Consolas, monospace; padding: 26px 34px; caret-color: #22D3EE; }
+  .note { position: absolute; right: 5%; top: 14%; width: 24%; height: 40%; background: #F8F5FF; border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,.5); padding: 30px; box-sizing: border-box; }
+  .note div { height: 14px; border-radius: 7px; background: #D9D3EE; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+  <div class="win">
+    <div class="bar"><span class="dot" style="background:#F87171"></span><span class="dot" style="background:#FBBF24"></span><span class="dot" style="background:#34D399"></span><span class="tab">app.ts</span></div>
+    <div class="side"><div style="width:70%"></div><div style="width:55%"></div><div style="width:80%;background:#4C1D95"></div><div style="width:60%"></div><div style="width:45%"></div></div>
+    <textarea id="t" spellcheck="false">import { play } from "./player";
+
+export function focusMode(task: Task) {
+  // stay in the zone
+  const music = play("lo-fi beats");
+</textarea>
+  </div>
+  <div class="note"><div style="width:60%;background:#A78BFA;height:20px"></div><div></div><div style="width:85%"></div><div style="width:70%"></div><div style="width:90%"></div><div style="width:50%;background:#C4B5FD"></div><div style="width:80%"></div></div>
+  <script>
+    const t = document.getElementById("t");
+    t.focus();
+    t.selectionStart = t.selectionEnd = t.value.length;
+  </script>
+</body>
+</html>

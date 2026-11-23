@@ -1,0 +1,545 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Tunelet promo</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #0B0918; overflow: hidden; }
+  svg { display: block; }
+  text { font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<svg id="v" width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE" /><stop offset="0.5" stop-color="#A855F7" /><stop offset="1" stop-color="#F472B6" />
+    </linearGradient>
+    <linearGradient id="wipe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE" /><stop offset="0.5" stop-color="#A855F7" /><stop offset="1" stop-color="#F472B6" />
+    </linearGradient>
+    <linearGradient id="room" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1A1533" /><stop offset="1" stop-color="#0E0B1F" />
+    </linearGradient>
+    <linearGradient id="roomAngry" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3A1424" /><stop offset="1" stop-color="#1A0B14" />
+    </linearGradient>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3B2D52" /><stop offset="1" stop-color="#241B36" />
+    </linearGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D7DEE8" /><stop offset="1" stop-color="#A9B4C4" />
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#A855F7" stop-opacity="0.45" /><stop offset="1" stop-color="#A855F7" stop-opacity="0" />
+    </radialGradient>
+    <filter id="blur"><feGaussianBlur id="blurAmt" stdDeviation="0" /></filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity="0.45" /></filter>
+    <clipPath id="screenClip"><rect x="0" y="0" width="760" height="470" rx="22" /></clipPath>
+    <clipPath id="footClip"><rect x="0" y="0" width="1440" height="810" rx="28" /></clipPath>
+  </defs>
+
+  <!-- ============ ROOM (scenes A–C, F) ============ -->
+  <g id="room">
+    <rect width="1920" height="1080" fill="url(#room)" />
+    <rect id="angryTint" width="1920" height="1080" fill="url(#roomAngry)" opacity="0" />
+    <circle cx="560" cy="420" r="520" fill="url(#glow)" id="roomGlow" />
+    <!-- wall shelf + plant + window, for a cosy room -->
+    <g opacity="0.55">
+      <rect x="120" y="150" width="300" height="12" rx="6" fill="#2E2650" />
+      <rect x="150" y="96" width="34" height="54" rx="6" fill="#7C3AED" />
+      <rect x="192" y="110" width="28" height="40" rx="6" fill="#22D3EE" />
+      <rect x="228" y="88" width="30" height="62" rx="6" fill="#F472B6" />
+      <path d="M340 150 q-30 -60 0 -90 q30 30 0 90 z" fill="#14B8A6" />
+      <path d="M340 150 q20 -50 50 -60 q-10 40 -50 60 z" fill="#0F9F8E" />
+    </g>
+    <g id="sceneStage">
+      <!-- the person (three looks, one face rig) -->
+      <g transform="translate(560 330)"><g id="char"></g></g>
+      <!-- desk + laptop in front of them -->
+      <rect x="0" y="808" width="1920" height="272" fill="url(#desk)" />
+      <rect x="0" y="808" width="1920" height="6" fill="#4A3B66" />
+      <g id="props">
+        <rect x="900" y="860" width="230" height="150" rx="14" fill="#2D2347" transform="rotate(-6 1015 935)"/>
+        <rect x="914" y="872" width="200" height="124" rx="10" fill="#F472B6" opacity="0.85" transform="rotate(-6 1015 935)"/>
+        <rect x="1180" y="900" width="70" height="128" rx="14" fill="#0F0C1E" transform="rotate(8 1215 964)"/>
+        <rect x="1186" y="908" width="58" height="104" rx="9" fill="#22D3EE" opacity="0.6" transform="rotate(8 1215 964)"/>
+        <rect x="160" y="842" width="96" height="120" rx="18" fill="#F8FAFC"/>
+        <path d="M256,870 q44,0 44,34 q0,34 -44,34" fill="none" stroke="#F8FAFC" stroke-width="16"/>
+        <rect x="170" y="852" width="76" height="22" rx="8" fill="#A855F7"/>
+        <path d="M188,830 q-10,-24 6,-44 M214,826 q-10,-26 6,-46" fill="none" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="6" stroke-linecap="round"/>
+      </g>
+      <g id="laptop" transform="translate(560 330)">
+        <rect x="-205" y="290" width="410" height="200" rx="18" fill="url(#lid)" />
+        <rect x="-205" y="474" width="410" height="16" rx="6" fill="#8C97A8" />
+        <g id="stickers"></g>
+      </g>
+      <!-- floating notes -->
+      <g id="notes"></g>
+      <!-- steam (frustration) -->
+      <g id="steam" opacity="0">
+        <circle class="puff" cx="470" cy="160" r="26" fill="#F1F5F9" />
+        <circle class="puff" cx="650" cy="150" r="22" fill="#F1F5F9" />
+        <circle class="puff" cx="560" cy="120" r="30" fill="#F1F5F9" />
+      </g>
+      <!-- their screen, floating to the right -->
+      <g id="screen" transform="translate(1030 190)" filter="url(#shadow)">
+        <rect x="0" y="0" width="760" height="470" rx="22" fill="#141024" />
+        <g clip-path="url(#screenClip)">
+          <rect x="0" y="0" width="760" height="44" fill="#1E1838" />
+          <circle cx="28" cy="22" r="7" fill="#F87171" /><circle cx="52" cy="22" r="7" fill="#FBBF24" /><circle cx="76" cy="22" r="7" fill="#34D399" />
+          <g id="screenContent" filter="url(#blur)"></g>
+          <g transform="translate(470 330)"><g id="toast" opacity="0">
+            <rect x="0" y="0" width="270" height="112" rx="18" fill="#1E1838"/>
+            <rect x="16" y="16" width="80" height="80" rx="12" fill="#64748B"/>
+            <path d="M44,40 v30 M56,46 v20 M68,36 v38" stroke="#CBD5E1" stroke-width="7" stroke-linecap="round"/>
+            <rect x="112" y="26" width="130" height="16" rx="8" fill="#E2E8F0"/>
+            <rect x="112" y="52" width="90" height="14" rx="7" fill="#64748B"/>
+            <path d="M118,80 l14,8 l-14,8 z M136,80 h4 v16 h-4 z" fill="#F87171"/>
+            <rect x="152" y="82" width="90" height="10" rx="5" fill="#334155"/>
+          </g></g>
+          <!-- alt-tab switcher -->
+          <g id="alttab" opacity="0"></g>
+          <!-- mini Tunelet bubble (payoff) -->
+          <g id="miniBubble" opacity="0" transform="translate(650 380)"></g>
+        </g>
+        <rect x="0" y="0" width="760" height="470" rx="22" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2" />
+      </g>
+      <!-- keycaps -->
+      <g id="keys" opacity="0" transform="translate(1250 720)"></g>
+    </g>
+  </g>
+
+  <!-- persona wipe (circle in Tunelet colours) -->
+  <circle id="wipeCircle" cx="560" cy="430" r="0" fill="url(#wipe)" />
+
+  <!-- ============ LOGO REVEAL ============ -->
+  <g id="reveal" opacity="0">
+    <rect width="1920" height="1080" fill="#0B0918" />
+    <circle cx="960" cy="470" r="420" fill="url(#glow)" opacity="0.8" />
+    <g id="logo" transform="translate(960 470) scale(0.5)">
+      <g transform="translate(-512 -512)">
+        <rect id="logoSq" x="40" y="40" width="944" height="944" rx="212" fill="#17122E" />
+        <circle cx="512" cy="512" r="304" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="63" />
+        <circle id="logoArc" cx="512" cy="512" r="304" fill="none" stroke="url(#ring)" stroke-width="63" stroke-linecap="round"
+                stroke-dasharray="1910" stroke-dashoffset="1910" transform="rotate(-90 512 512)" />
+        <rect class="bar" x="365" y="428" width="74" height="178" rx="37" fill="#FFFFFF" style="transform-origin: 402px 517px" />
+        <rect class="bar" x="475" y="344" width="74" height="336" rx="37" fill="#FFFFFF" style="transform-origin: 512px 512px" />
+        <rect class="bar" x="585" y="460" width="74" height="126" rx="37" fill="#FFFFFF" style="transform-origin: 622px 523px" />
+      </g>
+    </g>
+    <text id="wordmark" x="960" y="850" text-anchor="middle" font-size="120" font-weight="700" fill="#FFFFFF" letter-spacing="2" opacity="0">Tunelet</text>
+  </g>
+
+  <!-- ============ MONTAGE (real app) ============ -->
+  <g id="montage" opacity="0">
+    <rect width="1920" height="1080" fill="#0B0918" />
+    <circle id="mGlow" cx="960" cy="540" r="700" fill="url(#glow)" opacity="0.7" />
+    <g id="footFrame" transform="translate(240 150)">
+      <rect x="-3" y="-3" width="1446" height="816" rx="30" fill="url(#ring)" opacity="0.55" />
+      <g clip-path="url(#footClip)">
+        <rect width="1440" height="810" fill="#111" />
+        <image id="foot" x="0" y="0" width="1440" height="810" preserveAspectRatio="xMidYMid slice" href="" />
+        <g id="footPlaceholder"><text x="720" y="420" text-anchor="middle" font-size="40" fill="#555">footage</text></g>
+      </g>
+    </g>
+    <g transform="translate(960 1020)"><g id="caption">
+      <rect id="capBg" x="-300" y="-46" width="600" height="72" rx="36" fill="#17122E" stroke="url(#ring)" stroke-width="2" />
+      <text id="capText" x="0" y="4" text-anchor="middle" font-size="36" font-weight="600" fill="#FFFFFF"></text>
+    </g></g>
+    <g id="montageLogo" transform="translate(150 80) scale(0.09)">
+      <g transform="translate(-512 -512)">
+        <rect x="40" y="40" width="944" height="944" rx="212" fill="#17122E" />
+        <circle cx="512" cy="512" r="304" fill="none" stroke="url(#ring)" stroke-width="63" stroke-linecap="round" stroke-dasharray="1520 390" transform="rotate(-90 512 512)" />
+        <rect x="365" y="428" width="74" height="178" rx="37" fill="#FFF" /><rect x="475" y="344" width="74" height="336" rx="37" fill="#FFF" /><rect x="585" y="460" width="74" height="126" rx="37" fill="#FFF" />
+      </g>
+    </g>
+  </g>
+
+  <!-- ============ END CARD ============ -->
+  <g id="endcard" opacity="0">
+    <rect width="1920" height="1080" fill="#0B0918" opacity="0.97" />
+    <g id="endLogo" transform="translate(960 400) scale(0.32)">
+      <g transform="translate(-512 -512)">
+        <rect x="40" y="40" width="944" height="944" rx="212" fill="#17122E" />
+        <circle cx="512" cy="512" r="304" fill="none" stroke="url(#ring)" stroke-width="63" stroke-linecap="round" stroke-dasharray="1520 390" transform="rotate(-90 512 512)" />
+        <rect class="ebar" x="365" y="428" width="74" height="178" rx="37" fill="#FFF" style="transform-origin: 402px 517px" />
+        <rect class="ebar" x="475" y="344" width="74" height="336" rx="37" fill="#FFF" style="transform-origin: 512px 512px" />
+        <rect class="ebar" x="585" y="460" width="74" height="126" rx="37" fill="#FFF" style="transform-origin: 622px 523px" />
+      </g>
+    </g>
+    <text x="960" y="650" text-anchor="middle" font-size="96" font-weight="700" fill="#FFFFFF">Tunelet</text>
+    <text x="960" y="722" text-anchor="middle" font-size="38" fill="#C4B5FD">Your music, without leaving your work.</text>
+    <g transform="translate(960 820)">
+      <rect x="-330" y="-40" width="660" height="70" rx="35" fill="url(#ring)" />
+      <text x="0" y="8" text-anchor="middle" font-size="32" font-weight="600" fill="#0B0918">Free for Windows &amp; Mac</text>
+    </g>
+    <text x="960" y="930" text-anchor="middle" font-size="30" fill="#94A3B8">github.com/ShadowMonarch9099/tunelet</text>
+  </g>
+</svg>
+
+<script src="node_modules/gsap/dist/gsap.min.js"></script>
+<script>
+// ---------------------------------------------------------------------------
+// The person: three looks sharing one face rig (eyes, brows, mouth, head bob),
+// so expressions stay in sync across swaps. Head centre = (0,0).
+// ---------------------------------------------------------------------------
+const LOOKS = [
+  { // A: student
+    skin: "#A26A42", shade: "#8A5634", shirt: "#7C3AED", shirt2: "#6D28D9",
+    backHair: `<g fill="#24160F">${[[-70,-70,62],[0,-98,70],[70,-70,62],[-96,-10,48],[96,-10,48],[-40,-110,52],[40,-110,52]].map(([x,y,r]) => `<circle cx="${x}" cy="${y}" r="${r}"/>`).join("")}</g>`,
+    frontHair: `<g fill="#2E1D14">${[[-50,-88,34],[0,-100,36],[50,-88,34],[-78,-58,28],[78,-58,28]].map(([x,y,r]) => `<circle cx="${x}" cy="${y}" r="${r}"/>`).join("")}</g>`,
+    torso: `
+      <path d="M-175,540 L-175,300 Q-175,215 -95,200 L95,200 Q175,215 175,300 L175,540 Z" fill="#7C3AED"/>
+      <path d="M-70,200 Q0,250 70,200 Q60,170 0,168 Q-60,170 -70,200 Z" fill="#6D28D9"/>
+      <line x1="-22" y1="230" x2="-26" y2="300" stroke="#E9D5FF" stroke-width="6" stroke-linecap="round"/>
+      <line x1="22" y1="230" x2="26" y2="300" stroke="#E9D5FF" stroke-width="6" stroke-linecap="round"/>
+      <path d="M-60,330 L60,330 L50,400 L-50,400 Z" fill="#6D28D9"/>`,
+    gear: `
+      <path d="M-104,-10 C-110,-150 110,-150 104,-10" fill="none" stroke="#F1F5F9" stroke-width="16" stroke-linecap="round"/>
+      <rect x="-122" y="-26" width="34" height="62" rx="16" fill="#F1F5F9"/><rect x="-118" y="-18" width="14" height="46" rx="7" fill="#F472B6"/>
+      <rect x="88" y="-26" width="34" height="62" rx="16" fill="#F1F5F9"/><rect x="104" y="-18" width="14" height="46" rx="7" fill="#F472B6"/>`,
+    glasses: `<g fill="none" stroke="#111827" stroke-width="5"><circle cx="-34" cy="10" r="24"/><circle cx="34" cy="10" r="24"/><path d="M-10,8 Q0,2 10,8"/></g>`,
+    stickers: `<circle cx="-120" cy="350" r="26" fill="#F472B6"/><rect x="60" y="400" width="70" height="34" rx="10" fill="#22D3EE"/><path d="M-30,430 l14,-30 l14,30 z" fill="#FBBF24"/>`,
+  },
+  { // B: developer
+    skin: "#F1C9A5", shade: "#D9A982", shirt: "#1F2937", shirt2: "#111827",
+    backHair: `<path d="M-92,-20 Q-100,-110 0,-112 Q100,-110 92,-20 Z" fill="#5B3A1E"/>`,
+    frontHair: `
+      <path d="M-96,-38 Q-100,-140 0,-142 Q100,-140 96,-38 Z" fill="#14B8A6"/>
+      <rect x="-100" y="-54" width="200" height="30" rx="14" fill="#0F9F8E"/>
+      <path d="M-70,-24 Q-40,-8 -14,-22 L-14,-26 Z" fill="#5B3A1E"/>`,
+    torso: `
+      <path d="M-175,540 L-175,300 Q-175,215 -95,200 L95,200 Q175,215 175,300 L175,540 Z" fill="#1F2937"/>
+      <path d="M-46,200 Q0,236 46,200" fill="none" stroke="#111827" stroke-width="10"/>
+      <text x="0" y="330" text-anchor="middle" font-size="54" font-weight="700" fill="#22D3EE" font-family="Consolas, monospace">&lt;/&gt;</text>`,
+    gear: `
+      <path d="M-104,-18 C-110,-160 110,-160 104,-18" fill="none" stroke="#111827" stroke-width="18" stroke-linecap="round"/>
+      <rect x="-124" y="-30" width="38" height="68" rx="18" fill="#111827"/><rect x="-120" y="-20" width="12" height="48" rx="6" fill="#22D3EE"/>
+      <rect x="86" y="-30" width="38" height="68" rx="18" fill="#111827"/><rect x="108" y="-20" width="12" height="48" rx="6" fill="#22D3EE"/>`,
+    glasses: "",
+    stickers: `<text x="-130" y="380" font-size="48" font-weight="700" fill="#1F2937" font-family="Consolas, monospace">{ }</text><rect x="50" y="410" width="90" height="30" rx="8" fill="#F472B6"/><circle cx="110" cy="345" r="20" fill="#A855F7"/>`,
+  },
+  { // C: everyday music lover
+    skin: "#5A3825", shade: "#48301F", shirt: "#2563EB", shirt2: "#1D4ED8",
+    backHair: `<g fill="#1A1110">
+      <path d="M-92,-30 Q-100,-118 0,-118 Q100,-118 92,-30 Z"/>
+      ${[-110,-92,-74,74,92,110].map((x) => `<rect x="${x - 9}" y="-40" width="18" height="${x < 0 ? 250 : 250}" rx="9"/>`).join("")}
+    </g>
+    <g fill="#FBBF24">${[-110,-74,92].map((x) => `<rect x="${x - 10}" y="150" width="20" height="10" rx="4"/>`).join("")}</g>`,
+    frontHair: `<path d="M-90,-40 Q-60,-120 0,-118 Q60,-120 90,-40 Q40,-80 0,-78 Q-40,-80 -90,-40 Z" fill="#241615"/>`,
+    torso: `
+      <path d="M-175,540 L-175,300 Q-175,215 -95,200 L95,200 Q175,215 175,300 L175,540 Z" fill="#2563EB"/>
+      <path d="M-70,200 L0,300 L70,200 Z" fill="#F59E0B"/>
+      <path d="M-70,200 L-10,310 L-40,330 L-110,230 Z" fill="#1D4ED8"/>
+      <path d="M70,200 L10,310 L40,330 L110,230 Z" fill="#1D4ED8"/>
+      <circle cx="-120" cy="360" r="6" fill="#BFDBFE"/><circle cx="-120" cy="400" r="6" fill="#BFDBFE"/>`,
+    gear: `
+      <ellipse cx="-96" cy="14" rx="9" ry="12" fill="#F8FAFC"/><rect x="-99" y="20" width="6" height="22" rx="3" fill="#F8FAFC"/>
+      <ellipse cx="96" cy="14" rx="9" ry="12" fill="#F8FAFC"/><rect x="93" y="20" width="6" height="22" rx="3" fill="#F8FAFC"/>
+      <circle cx="-94" cy="44" r="12" fill="none" stroke="#FBBF24" stroke-width="4"/><circle cx="94" cy="44" r="12" fill="none" stroke="#FBBF24" stroke-width="4"/>`,
+    glasses: "",
+    stickers: `<circle cx="-110" cy="380" r="30" fill="#F59E0B"/><path d="M40,350 q20,-20 40,0 q20,-20 40,0 q0,30 -40,50 q-40,-20 -40,-50z" fill="#F472B6"/>`,
+  },
+];
+
+const face = (L) => `
+  <ellipse cx="-90" cy="10" rx="16" ry="24" fill="${L.shade}"/>
+  <ellipse cx="90" cy="10" rx="16" ry="24" fill="${L.shade}"/>
+  <ellipse cx="0" cy="0" rx="92" ry="102" fill="${L.skin}"/>
+  <ellipse class="blush" cx="-52" cy="44" rx="16" ry="9" fill="#F472B6" opacity="0.35"/>
+  <ellipse class="blush" cx="52" cy="44" rx="16" ry="9" fill="#F472B6" opacity="0.35"/>
+  <g class="eyes">
+    <ellipse class="eye" cx="-34" cy="10" rx="9" ry="12" fill="#1B1020"/>
+    <ellipse class="eye" cx="34" cy="10" rx="9" ry="12" fill="#1B1020"/>
+    <circle cx="-31" cy="5" r="3" fill="#fff"/><circle cx="37" cy="5" r="3" fill="#fff"/>
+  </g>
+  <path class="brow brow-l" d="M-50,-22 Q-34,-32 -18,-24" fill="none" stroke="#2A1A12" stroke-width="7" stroke-linecap="round" style="transform-origin:-34px -26px"/>
+  <path class="brow brow-r" d="M18,-24 Q34,-32 50,-22" fill="none" stroke="#2A1A12" stroke-width="7" stroke-linecap="round" style="transform-origin:34px -26px"/>
+  <path d="M-4,22 Q-8,34 2,36" fill="none" stroke="${L.shade}" stroke-width="5" stroke-linecap="round"/>
+  <path class="m m-smile" d="M-30,54 Q0,82 30,54" fill="none" stroke="#5B1A1A" stroke-width="7" stroke-linecap="round"/>
+  <path class="m m-flat" d="M-24,62 L24,62" fill="none" stroke="#5B1A1A" stroke-width="7" stroke-linecap="round" opacity="0"/>
+  <path class="m m-frown" d="M-28,70 Q0,48 28,70" fill="none" stroke="#5B1A1A" stroke-width="7" stroke-linecap="round" opacity="0"/>
+  <path class="m m-ugh" d="M-26,60 Q0,52 26,60 Q22,84 0,84 Q-22,84 -26,60 Z" fill="#5B1A1A" opacity="0"/>
+  <path class="m m-grin" d="M-34,52 Q0,96 34,52 Z" fill="#5B1A1A" opacity="0"/>`;
+
+const look = (L, i) => `
+  <g class="look look-${i}" opacity="${i === 0 ? 1 : 0}">
+    <g transform="translate(0 -55)">
+    <rect x="-190" y="150" width="380" height="330" rx="60" fill="#2A2440"/>
+    <g class="torso">
+      <path d="M-150,240 Q-230,400 -120,500" fill="none" stroke="${L.shirt2}" stroke-width="64" stroke-linecap="round"/>
+      <path d="M150,240 Q230,400 120,500" fill="none" stroke="${L.shirt2}" stroke-width="64" stroke-linecap="round"/>
+      <rect x="-28" y="70" width="56" height="150" fill="${L.shade}"/>
+      ${L.torso}
+    </g>
+    </g>
+    <g class="head">
+      ${L.backHair}
+      ${face(L)}
+      ${L.frontHair}
+      ${L.glasses}
+      ${L.gear}
+    </g>
+  </g>`;
+
+document.getElementById("char").innerHTML = LOOKS.map(look).join("");
+document.getElementById("stickers").innerHTML = LOOKS.map((L, i) => `<g class="stk stk-${i}" opacity="${i === 0 ? 1 : 0}">${L.stickers}</g>`).join("");
+
+// ---------------------------------------------------------------------------
+// Their screen: notes / code / browser, one per look.
+// ---------------------------------------------------------------------------
+const bars = (rows) => rows.map(([x, y, w, c]) => `<rect x="${x}" y="${y}" width="${w}" height="16" rx="8" fill="${c}"/>`).join("");
+const SCREENS = [
+  `<rect x="0" y="44" width="760" height="426" fill="#F8F5FF"/>
+   <rect x="48" y="80" width="300" height="26" rx="8" fill="#7C3AED"/>
+   ${bars([[48,130,620,"#CBD5E1"],[48,160,560,"#CBD5E1"],[48,190,600,"#CBD5E1"],[48,240,250,"#A78BFA"],[48,270,640,"#CBD5E1"],[48,300,520,"#CBD5E1"],[48,330,590,"#CBD5E1"],[48,380,280,"#A78BFA"],[48,410,470,"#CBD5E1"]])}
+   <rect id="cursor0" x="520" y="406" width="4" height="24" fill="#7C3AED"/>`,
+  `<rect x="0" y="44" width="760" height="426" fill="#0F1222"/>
+   <rect x="0" y="44" width="160" height="426" fill="#151931"/>
+   ${bars([[20,74,110,"#334155"],[20,104,90,"#334155"],[20,134,120,"#4C1D95"],[20,164,80,"#334155"]])}
+   ${bars([[190,74,90,"#F472B6"],[290,74,160,"#22D3EE"],[214,104,120,"#A78BFA"],[344,104,200,"#E2E8F0"],[214,134,80,"#FBBF24"],[304,134,240,"#22D3EE"],[238,164,300,"#E2E8F0"],[238,194,180,"#34D399"],[214,224,60,"#F472B6"],[190,254,40,"#E2E8F0"],[190,300,120,"#F472B6"],[320,300,140,"#22D3EE"],[214,330,260,"#E2E8F0"],[214,360,180,"#A78BFA"],[190,390,40,"#E2E8F0"]])}
+   <rect id="cursor1" x="404" y="356" width="4" height="24" fill="#22D3EE"/>`,
+  `<rect x="0" y="44" width="760" height="426" fill="#F1F5F9"/>
+   <rect x="24" y="60" width="712" height="34" rx="17" fill="#E2E8F0"/>
+   <rect x="24" y="112" width="440" height="200" rx="16" fill="#BFDBFE"/>
+   <rect x="484" y="112" width="252" height="92" rx="16" fill="#FDE68A"/>
+   <rect x="484" y="220" width="252" height="92" rx="16" fill="#FBCFE8"/>
+   ${bars([[24,336,460,"#CBD5E1"],[24,366,560,"#CBD5E1"],[24,396,380,"#CBD5E1"],[24,426,500,"#CBD5E1"]])}
+   <rect id="cursor2" x="530" y="392" width="4" height="24" fill="#2563EB"/>`,
+];
+document.getElementById("screenContent").innerHTML = SCREENS.map((s, i) => `<g class="scr scr-${i}" opacity="${i === 0 ? 1 : 0}">${s}</g>`).join("");
+
+// Alt-tab switcher: a dark panel with window thumbnails and a moving highlight.
+const thumbs = ["#7C3AED", "#22D3EE", "#F472B6", "#FBBF24", "#34D399"];
+document.getElementById("alttab").innerHTML = `
+  <rect x="0" y="44" width="760" height="426" fill="#000" opacity="0.55"/>
+  <rect x="60" y="150" width="640" height="200" rx="22" fill="#1E1838" opacity="0.96"/>
+  ${thumbs.map((c, i) => `<rect x="${86 + i * 122}" y="186" width="100" height="128" rx="12" fill="${c}" opacity="0.85"/>`).join("")}
+  <rect id="atHi" x="80" y="180" width="112" height="140" rx="16" fill="none" stroke="#FFFFFF" stroke-width="5"/>`;
+
+// Keycaps: Alt + Tab.
+document.getElementById("keys").innerHTML = `
+  <g id="kAlt"><rect x="0" y="0" width="140" height="96" rx="18" fill="#E2E8F0"/><rect x="0" y="0" width="140" height="84" rx="18" fill="#F8FAFC"/><text x="70" y="56" text-anchor="middle" font-size="38" font-weight="700" fill="#1E1838">Alt</text></g>
+  <text x="170" y="62" text-anchor="middle" font-size="44" font-weight="700" fill="#E2E8F0">+</text>
+  <g id="kTab" transform="translate(200 0)"><rect x="0" y="0" width="170" height="96" rx="18" fill="#E2E8F0"/><rect x="0" y="0" width="170" height="84" rx="18" fill="#F8FAFC"/><text x="85" y="56" text-anchor="middle" font-size="38" font-weight="700" fill="#1E1838">Tab</text></g>`;
+
+// Floating music notes near the head.
+const note = (x, y, s, c) => `<g transform="translate(${x} ${y}) scale(${s})"><g class="note" opacity="0"><ellipse cx="0" cy="40" rx="18" ry="13" fill="${c}" transform="rotate(-20 0 40)"/><rect x="13" y="-30" width="6" height="70" fill="${c}"/><path d="M19,-30 q30,10 26,40 q-6,-20 -26,-22z" fill="${c}"/></g></g>`;
+document.getElementById("notes").innerHTML = [note(770, 330, 1, "#22D3EE"), note(830, 250, 0.8, "#F472B6"), note(720, 190, 0.9, "#A855F7"), note(330, 280, 0.85, "#FBBF24")].join("");
+
+// Mini Tunelet bubble for the payoff (logo-coloured ring + bars).
+document.getElementById("miniBubble").innerHTML = `
+  <circle r="58" fill="#17122E" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="2"/>
+  <circle r="46" fill="none" stroke="url(#ring)" stroke-width="10" stroke-linecap="round" stroke-dasharray="230 60" transform="rotate(-90)"/>
+  <rect class="mb" x="-20" y="-12" width="10" height="26" rx="5" fill="#fff" style="transform-origin:-15px 1px"/>
+  <rect class="mb" x="-5" y="-24" width="10" height="48" rx="5" fill="#fff" style="transform-origin:0px 0px"/>
+  <rect class="mb" x="10" y="-8" width="10" height="18" rx="5" fill="#fff" style="transform-origin:15px 1px"/>`;
+
+// ---------------------------------------------------------------------------
+// Timeline. Everything is a pure function of time, so any frame can be
+// rendered exactly: seek(t).
+// ---------------------------------------------------------------------------
+const FPS = 30;
+const tl = gsap.timeline({ paused: true });
+const S = (sel) => document.querySelectorAll(sel);
+
+// Footage clips for the montage (filled in once recorded): [caption, folder, frames]
+const CLIPS = window.CLIPS || [
+  ["Never leaves your app", "focus", 0],
+  ["One click, everything", "menu", 0],
+  ["Search & play anything", "search", 0],
+  ["Colours match your music", "colors", 0],
+  ["Synced lyrics", "lyrics", 0],
+  ["One key to hide", "hide", 0],
+];
+const M_START = 20.5, CLIP_LEN = 2.75, M_END = M_START + CLIPS.length * CLIP_LEN;
+
+function mood(at, m, dur = 0.25) {
+  ["smile", "flat", "frown", "ugh", "grin"].forEach((k) => tl.to(S(".m-" + k), { opacity: k === m ? 1 : 0, duration: dur }, at));
+  const brow = { smile: [0, 0], flat: [0, 4], frown: [14, 8], ugh: [22, 10], grin: [-6, -6] }[m];
+  tl.to(S(".brow-l"), { rotation: brow[0], y: brow[1], duration: dur }, at);
+  tl.to(S(".brow-r"), { rotation: -brow[0], y: brow[1], duration: dur }, at);
+}
+
+function swapLook(at, to) {
+  tl.to("#wipeCircle", { attr: { r: 380 }, duration: 0.22, ease: "power2.in" }, at);
+  tl.set(".look", { opacity: 0 }, at + 0.22);
+  tl.set(".look-" + to, { opacity: 1 }, at + 0.22);
+  tl.set(".stk", { opacity: 0 }, at + 0.22);
+  tl.set(".stk-" + to, { opacity: 1 }, at + 0.22);
+  tl.set(".scr", { opacity: 0 }, at + 0.22);
+  tl.set(".scr-" + to, { opacity: 1 }, at + 0.22);
+  tl.to("#wipeCircle", { attr: { r: 0 }, duration: 0.28, ease: "power2.out" }, at + 0.22);
+}
+
+function vibe(from, to, speed = 0.48) {
+  // head bob + body sway on the beat, notes drifting up
+  const beats = Math.floor((to - from) / speed);
+  for (let b = 0; b < beats; b++) {
+    const t = from + b * speed;
+    tl.to(S(".head"), { rotation: b % 2 ? -5 : 5, y: -6, duration: speed / 2, ease: "sine.inOut", transformOrigin: "0px 80px" }, t);
+    tl.to(S(".head"), { y: 0, duration: speed / 2, ease: "sine.inOut" }, t + speed / 2);
+    tl.to("#char", { y: b % 2 ? 2 : -2, duration: speed, ease: "sine.inOut" }, t);
+  }
+  S(".note").forEach((n, i) => {
+    const start = from + i * 0.55;
+    for (let k = start; k < to - 1.2; k += 2.2) {
+      tl.fromTo(n, { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5 }, k);
+      tl.to(n, { opacity: 0, y: -70, duration: 1.1 }, k + 0.5);
+    }
+  });
+}
+
+function blink(at) {
+  tl.to(S(".eye"), { scaleY: 0.1, transformOrigin: "50% 50%", duration: 0.06 }, at);
+  tl.to(S(".eye"), { scaleY: 1, duration: 0.08 }, at + 0.08);
+}
+
+function typing(from, to, look) {
+  // cursor blinks/advances = they're working
+  for (let t = from; t < to; t += 0.5) {
+    tl.set("#cursor" + look, { opacity: 0 }, t + 0.25);
+    tl.set("#cursor" + look, { opacity: 1 }, t + 0.5);
+  }
+}
+
+// One alt-tab fiasco: frown, Alt+Tab mashing, screen chaos, sigh.
+function fiasco(at, look, intensity) {
+  mood(at, "flat", 0.15);
+  tl.to(S(".head"), { rotation: 0, y: 0, duration: 0.2 }, at);
+  tl.fromTo("#toast", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.25, ease: "back.out(2)" }, at - 0.1);
+  tl.to("#toast", { opacity: 0, duration: 0.15 }, at + 0.45);
+  mood(at + 0.35, "frown");
+  tl.to("#keys", { opacity: 1, duration: 0.15 }, at + 0.4);
+  tl.to("#alttab", { opacity: 1, duration: 0.12 }, at + 0.5);
+  const presses = 3 + intensity * 2;
+  for (let p = 0; p < presses; p++) {
+    const t = at + 0.5 + p * (0.32 - intensity * 0.06);
+    tl.to("#kTab", { y: 10, duration: 0.06 }, t);
+    tl.to("#kTab", { y: 0, duration: 0.08 }, t + 0.1);
+    tl.to("#atHi", { attr: { x: 80 + ((p + 1) % 5) * 122 }, duration: 0.1 }, t);
+  }
+  const end = at + 0.5 + presses * (0.32 - intensity * 0.06);
+  tl.to("#alttab", { opacity: 0, duration: 0.15 }, end);
+  tl.to("#keys", { opacity: 0, duration: 0.15 }, end);
+  // lost their place: screen content blurs and jitters
+  tl.to("#blurAmt", { attr: { stdDeviation: 2 + intensity * 3 }, duration: 0.2 }, end);
+  tl.to("#screenContent", { x: -14, duration: 0.05, repeat: 5, yoyo: true }, end);
+  tl.to("#blurAmt", { attr: { stdDeviation: 0 }, duration: 0.3 }, end + 0.55);
+  mood(end + 0.05, intensity >= 2 ? "ugh" : "frown");
+  // frustration builds: steam, red room tint, shake
+  tl.to("#steam", { opacity: intensity >= 1 ? 0.9 : 0, duration: 0.2 }, end);
+  S(".puff").forEach((p, i) => tl.fromTo(p, { y: 0, scale: 0.6, transformOrigin: "50% 50%" }, { y: -50, scale: 1.2, duration: 0.8 }, end + i * 0.1));
+  tl.to("#steam", { opacity: 0, duration: 0.3 }, end + 0.85);
+  tl.to("#angryTint", { opacity: 0.25 + intensity * 0.25, duration: 0.3 }, end);
+  tl.to("#sceneStage", { x: 10, duration: 0.04, repeat: 7 + intensity * 4, yoyo: true }, end);
+  // slump
+  tl.to(S(".head"), { y: 14, rotation: intensity % 2 ? 6 : -6, duration: 0.3, transformOrigin: "0px 80px" }, end + 0.4);
+  tl.to(S(".torso"), { y: 8, duration: 0.3 }, end + 0.4);
+  return end + 0.9;
+}
+
+// --- 0–3 s: vibing (student) ---
+tl.set("#room", { opacity: 1 }, 0);
+mood(0, "smile", 0.01);
+vibe(0, 7.4);
+typing(0, 7.4, 0);
+blink(1.4);
+tl.from("#screen", { x: 80, opacity: 0, duration: 0.8, ease: "power3.out" }, 0.1);
+tl.from("#char", { y: 60, opacity: 0, duration: 0.7, ease: "power3.out" }, 0);
+
+// --- 3–7.5 s: anyone (swap looks) ---
+swapLook(3.0, 1); typing(3.3, 7.4, 1); blink(4.1);
+swapLook(5.2, 2); typing(5.5, 7.4, 2); blink(6.3);
+mood(6.2, "grin");
+
+// --- 7.5–17 s: the problem, once per look, escalating ---
+let t = fiasco(7.6, 2, 0);
+tl.to(S(".head"), { y: 0, rotation: 0, duration: 0.2 }, t);
+tl.to(S(".torso"), { y: 0, duration: 0.2 }, t);
+tl.to("#angryTint", { opacity: 0.1, duration: 0.3 }, t);
+swapLook(t, 0); t += 0.6;
+t = fiasco(t, 0, 1);
+tl.to(S(".head"), { y: 0, rotation: 0, duration: 0.2 }, t);
+tl.to(S(".torso"), { y: 0, duration: 0.2 }, t);
+swapLook(t, 1); t += 0.6;
+t = fiasco(t, 1, 2);
+const PROBLEM_END = Math.max(t + 0.4, 17);
+
+// --- 17–20.5 s: logo reveal ---
+tl.to("#reveal", { opacity: 1, duration: 0.35 }, PROBLEM_END);
+tl.set("#room", { opacity: 0 }, PROBLEM_END + 0.35);
+tl.fromTo("#logo", { scale: 0.2, rotation: -20 }, { scale: 0.5, rotation: 0, duration: 0.7, ease: "back.out(1.7)" }, PROBLEM_END + 0.1);
+tl.to("#logoArc", { attr: { "stroke-dashoffset": 390 }, duration: 1.1, ease: "power2.inOut" }, PROBLEM_END + 0.45);
+S(".bar").forEach((b, i) => {
+  tl.fromTo(b, { scaleY: 0, transformOrigin: "50% 50%" }, { scaleY: 1, duration: 0.45, ease: "back.out(2.5)" }, PROBLEM_END + 0.6 + i * 0.1);
+  for (let k = 0; k < 4; k++) tl.to(b, { scaleY: [0.55, 1.25, 0.75, 1][k], transformOrigin: "50% 50%", duration: 0.18, ease: "sine.inOut" }, PROBLEM_END + 1.3 + k * 0.22 + i * 0.07);
+});
+tl.fromTo("#wordmark", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, PROBLEM_END + 1.4);
+const REVEAL_END = PROBLEM_END + 3.3;
+
+// --- montage: real app footage with captions ---
+const mStart = REVEAL_END;
+tl.to("#montage", { opacity: 1, duration: 0.35 }, mStart - 0.2);
+tl.to("#reveal", { opacity: 0, duration: 0.3 }, mStart);
+CLIPS.forEach(([cap], i) => {
+  const at = mStart + i * CLIP_LEN;
+  tl.fromTo("#footFrame", { scale: 0.96, opacity: 0.4, transformOrigin: "720px 405px" }, { scale: 1, opacity: 1, duration: 0.35, ease: "power2.out" }, at);
+  tl.fromTo("#caption", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "power2.out" }, at + 0.1);
+});
+const M_DONE = mStart + CLIPS.length * CLIP_LEN;
+
+// --- payoff: happy, all looks, with the bubble ---
+tl.to("#montage", { opacity: 0, duration: 0.35 }, M_DONE);
+tl.set("#room", { opacity: 1 }, M_DONE);
+tl.set("#angryTint", { opacity: 0 }, M_DONE);
+tl.set("#blurAmt", { attr: { stdDeviation: 0 } }, M_DONE);
+tl.set(S(".head"), { y: 0, rotation: 0 }, M_DONE);
+tl.set(S(".torso"), { y: 0 }, M_DONE);
+tl.set("#sceneStage", { x: 0 }, M_DONE);
+mood(M_DONE, "grin", 0.01);
+tl.to("#miniBubble", { opacity: 1, duration: 0.4 }, M_DONE + 0.2);
+tl.fromTo("#miniBubble", { scale: 0.3, transformOrigin: "650px 380px" }, { scale: 1, duration: 0.5, ease: "back.out(2)" }, M_DONE + 0.2);
+S(".mb").forEach((b, i) => { for (let k = 0; k < 12; k++) tl.to(b, { scaleY: [0.5, 1.2, 0.8, 1.1][(k + i) % 4], transformOrigin: "50% 50%", duration: 0.24 }, M_DONE + 0.3 + k * 0.24); });
+vibe(M_DONE, M_DONE + 3.2, 0.4);
+swapLook(M_DONE + 0.9, 2);
+swapLook(M_DONE + 1.8, 0);
+const END = M_DONE + 2.8;
+tl.to("#endcard", { opacity: 1, duration: 0.5 }, END);
+tl.fromTo("#endLogo", { scale: 0.2 }, { scale: 0.32, duration: 0.6, ease: "back.out(1.8)" }, END);
+S(".ebar").forEach((b, i) => { for (let k = 0; k < 10; k++) tl.to(b, { scaleY: [0.6, 1.2, 0.85, 1][(k + i) % 4], transformOrigin: "50% 50%", duration: 0.22 }, END + 0.3 + k * 0.22); });
+const DURATION = END + 3.2;
+
+// Footage frame switching (montage): pick the clip and frame for time t.
+const foot = document.getElementById("foot");
+let footSrc = "";
+function footageFor(time) {
+  const i = Math.floor((time - mStart) / CLIP_LEN);
+  if (time < mStart - 0.2 || i < 0 || i >= CLIPS.length) return "";
+  const [, dir, frames] = CLIPS[i];
+  if (!frames) return "";
+  const f = Math.min(frames, Math.max(1, Math.floor((time - mStart - i * CLIP_LEN) * FPS) + 1));
+  return `footage/${dir}/${String(f).padStart(4, "0")}.jpg`;
+}
+
+window.DURATION = DURATION;
+window.FPS = FPS;
+const capText = document.getElementById("capText");
+window.seek = async (time) => {
+  tl.seek(Math.min(time, DURATION), false);
+  const ci = Math.floor((time - mStart) / CLIP_LEN);
+  capText.textContent = ci >= 0 && ci < CLIPS.length ? CLIPS[ci][0] : "";
+  const src = footageFor(time);
+  document.getElementById("footPlaceholder").style.display = src ? "none" : "";
+  if (src !== footSrc) {
+    footSrc = src;
+    foot.setAttribute("href", src);
+    if (src) await new Promise((r) => { const im = new Image(); im.onload = im.onerror = r; im.src = src; });
+  }
+  return true;
+};
+seek(0);
+</script>
+</body>
+</html>

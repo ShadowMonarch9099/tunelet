@@ -1,0 +1,13 @@
+{
+  "name": "tunelet-promo",
+  "private": true,
+  "type": "module",
+  "description": "Tunelet promo video: an animated web page rendered frame by frame to MP4.",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "gsap": "^3.12.5",
+    "puppeteer-core": "^23.11.1"
+  }
+}
