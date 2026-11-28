@@ -4,6 +4,8 @@
 
 A tiny, always-on-top Spotify mini-player for Windows: a round bubble with the album art that floats over whatever you're working in. Click it for a menu that fans out around it, right-click to play/pause, and search, like and skip songs without switching to the Spotify app.
 
+<p align="center"><a href="https://tunelet-site.vercel.app"><b>Download Tunelet → tunelet-site.vercel.app</b></a></p>
+
 ## Features
 
 - **Floating bubble** — album art that spins like a vinyl while playing, with a progress ring; drag it anywhere
@@ -25,7 +27,9 @@ A tiny, always-on-top Spotify mini-player for Windows: a round bubble with the a
 
 **New here? Follow the [step-by-step setup guide](docs/setup-guide.md)** for Windows and Mac: download, Spotify Client ID, and connecting, start to finish.
 
-Download the latest installer from the [Releases](../../releases/latest) page:
+The easiest way: open **[tunelet-site.vercel.app](https://tunelet-site.vercel.app)** and click the download button. It picks the right installer for your computer, and you can choose an older version there too.
+
+Or download the latest installer yourself from the [Releases](../../releases/latest) page:
 
 - **Most PCs (Intel / AMD):** `Tunelet_x.y.z_x64-setup.exe`
 - **Snapdragon / ARM PCs:** `Tunelet_x.y.z_arm64-setup.exe`
