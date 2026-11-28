@@ -16,7 +16,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   background: var(--cream);
@@ -117,7 +117,12 @@ h2 {
   text-transform: uppercase;
   letter-spacing: .005em;
 }
-.headline .line { display: block; overflow: hidden; padding-top: .04em; white-space: nowrap; }
+/* Size the headline from its own column so the widest line ("YOUR MUSIC,") always fits */
+.hero-copy { container-type: inline-size; }
+@supports (font-size: 1cqi) {
+  .headline { font-size: min(19.4cqi, 150px); }
+}
+.headline .line { display: block; overflow: hidden; padding: .04em .02em 0 0; white-space: nowrap; }
 .headline .word { display: inline-block; }
 .headline mark { color: var(--yellow); }
 .sub { max-width: 470px; margin: 28px 0 0; font-size: 19px; line-height: 1.55; color: rgba(255, 244, 224, .88); }
@@ -394,15 +399,33 @@ h2 {
 .foot-links a:hover { color: var(--yellow); }
 .foot-note { margin: 0; font-size: 14px; opacity: .6; }
 .foot-word {
+  position: relative;
+  display: flex; justify-content: center;
   margin: 0;
   font: 900 26vw/.78 var(--display); text-transform: uppercase;
-  text-align: center;
+  text-decoration: none;
+  overflow: hidden;
   color: #26211a;
   transform: translateY(12%);
   user-select: none;
-  transition: color .6s;
+  cursor: pointer;
 }
-.foot:hover .foot-word { color: var(--blue); }
+/* Each letter is its own key: it lifts and lights up under the pointer */
+.foot-word span { display: inline-block; transition: transform .25s var(--ease), color .15s; }
+.foot-word:hover span { color: #2c2720; }
+.foot-word span:hover { color: var(--blue); transform: translateY(-6%); }
+.foot-word span:nth-child(odd):hover { color: var(--yellow); }
+.foot-top {
+  position: absolute; left: 50%; top: 18%;
+  translate: -50% 0;
+  font: 700 15px var(--body); font-style: normal; text-transform: none; letter-spacing: .02em;
+  color: var(--cream);
+  padding: 9px 16px; border-radius: 999px; background: var(--blue);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .2s, transform .3s var(--ease);
+  pointer-events: none;
+}
+.foot-word:hover .foot-top, .foot-word:focus-visible .foot-top { opacity: 1; transform: none; }
 
 /* ---------- Toast ---------- */
 .toast {

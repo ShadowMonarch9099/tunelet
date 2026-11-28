@@ -264,6 +264,21 @@
       if (a && a.dataset.name) onDownload(a);
     });
 
+    // In-page links (#watch, #download, back to top) glide with GSAP; plain jump without it
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest('a[href^="#"]');
+      if (!a) return;
+      const target = a.getAttribute("href") === "#top" ? 0 : $(a.getAttribute("href"));
+      if (target === null) return;
+      e.preventDefault();
+      if (window.gsap && window.ScrollToPlugin && !reduceMotion) {
+        gsap.to(window, { scrollTo: { y: target, autoKill: true }, duration: 1.1, ease: "power3.inOut" });
+      } else {
+        target === 0 ? scrollTo(0, 0) : target.scrollIntoView();
+      }
+      history.replaceState(null, "", a.getAttribute("href") === "#top" ? location.pathname + location.search : a.getAttribute("href"));
+    });
+
     const video = $("#promo");
     const playBtn = $("#playBtn");
     playBtn.addEventListener("click", () => {
@@ -408,17 +423,20 @@
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); scratch(); }
     });
 
-    if (window.ScrollTrigger) {
-      ScrollTrigger.create({
-        trigger: ".hero", start: "top top", end: "bottom top",
-        onToggle: (self) => { inView = self.isActive; self.isActive ? spin.resume() : spin.pause(); },
-      });
+    // Only spin and emit while the record player is actually on screen
+    let started = false;
+    if ("IntersectionObserver" in window) {
+      new IntersectionObserver(([entry]) => {
+        inView = entry.isIntersecting;
+        if (!started) return;
+        inView ? spin.resume() : spin.pause();
+      }).observe(player);
     }
 
     // Needle drop, then the record winds up to speed
     return gsap.timeline()
       .to("#tonearm", { rotation: ARM_PLAY, duration: 1.1, ease: "power3.inOut" })
-      .add(() => { spin.play(); gsap.fromTo(spin, { timeScale: 0.05 }, { timeScale: 1, duration: 1.4, ease: "power2.in" }); });
+      .add(() => { started = true; spin.play(); gsap.fromTo(spin, { timeScale: 0.05 }, { timeScale: 1, duration: 1.4, ease: "power2.in" }); });
   }
 
   /* ------------------------------------------------------------------ */
@@ -444,6 +462,7 @@
     const html = document.documentElement;
     if (!window.gsap) { html.classList.remove("js"); return; }
     if (window.ScrollTrigger) gsap.registerPlugin(ScrollTrigger);
+    if (window.ScrollToPlugin) gsap.registerPlugin(ScrollToPlugin);
 
     startTicker();
     if (reduceMotion) { html.classList.remove("js"); return; }
@@ -474,10 +493,10 @@
         rotation: 0, scale: 1, ease: "none",
         scrollTrigger: { trigger: ".video-frame", start: "top bottom", end: "top 35%", scrub: 0.6 },
       });
-      // Big footer word slides up
-      gsap.fromTo(".foot-word", { yPercent: 40 }, {
-        yPercent: 12, ease: "none",
-        scrollTrigger: { trigger: ".foot", start: "top bottom", end: "bottom bottom", scrub: true },
+      // Big footer letters rise in once, one after another
+      gsap.fromTo(".foot-word span", { yPercent: 60 }, {
+        yPercent: 0, duration: 0.9, stagger: 0.05, ease: "power3.out",
+        scrollTrigger: { trigger: ".foot", start: "top 85%" },
       });
     } else {
       gsap.set(".reveal", { autoAlpha: 1 });
